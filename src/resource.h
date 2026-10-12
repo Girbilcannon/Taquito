@@ -1,0 +1,2 @@
+#pragma once
+#define IDR_TAQUITO_QUICKACCESS_ICON 101

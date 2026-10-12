@@ -1,0 +1,117 @@
+<?xml version='1.0' encoding='utf-8'?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003" ToolsVersion="4.0">
+  <ItemGroup>
+    <Filter Include="Core">
+      <UniqueIdentifier>{CA9C166A-737C-48F0-99CF-909121782101}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="UI">
+      <UniqueIdentifier>{BC27A647-A721-4780-936F-828395F79A02}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Resources">
+      <UniqueIdentifier>{8A4425D0-EB90-4897-B11C-0DD3D2652E00}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Third Party">
+      <UniqueIdentifier>{D6A7EB71-661B-48FA-AC45-D4DD8E636F17}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Third Party\imgui">
+      <UniqueIdentifier>{EE127FD3-C3CC-4310-BFAE-F9A77CC57E3A}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Third Party\nexus">
+      <UniqueIdentifier>{FB25B7DE-27A1-4FA6-9E00-60E055612CA3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Third Party\mumble">
+      <UniqueIdentifier>{9EA7D662-0824-47A0-942D-E6BFAC63B86B}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Third Party\parser">
+      <UniqueIdentifier>{D24C6351-549D-413F-A502-418935FD23D1}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\Entry.cpp" />
+    <ClCompile Include="src\UI\CategoryMenu.cpp"><Filter>UI</Filter></ClCompile>
+    <ClCompile Include="src\Core\AppRuntime.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Core\AppSettings.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Core\MarkerPack.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Core\OnlinePacks.cpp"><Filter>Core</Filter></ClCompile>
+    <ClCompile Include="src\Core\InstalledPacks.cpp"><Filter>Core</Filter></ClCompile>
+    <ClCompile Include="src\UI\QuickMenu.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
+    <ClCompile Include="src\UI\OverlayRenderer.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
+    <ClCompile Include="src\UI\SettingsWindow.cpp"><Filter>UI</Filter></ClCompile>
+    <ClCompile Include="src\UI\PackBrowserWindow.cpp"><Filter>UI</Filter></ClCompile>
+    <ClCompile Include="src\third_party\miniz.c">
+      <Filter>Third Party\parser</Filter>
+    </ClCompile>
+    <ClCompile Include="src\third_party\jsonxx.cpp"><Filter>Third Party\parser</Filter></ClCompile>
+    <ClCompile Include="src\imgui\imgui.cpp">
+      <Filter>Third Party\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="src\imgui\imgui_draw.cpp">
+      <Filter>Third Party\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="src\imgui\imgui_tables.cpp">
+      <Filter>Third Party\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="src\imgui\imgui_widgets.cpp">
+      <Filter>Third Party\imgui</Filter>
+    </ClCompile>
+    <ClInclude Include="src\Core\AppRuntime.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Core\AppSettings.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Core\MarkerPack.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Core\OnlinePacks.h"><Filter>Core</Filter></ClInclude>
+    <ClInclude Include="src\Core\InstalledPacks.h"><Filter>Core</Filter></ClInclude>
+    <ClInclude Include="src\Core\VisualAttributes.h"><Filter>Core</Filter></ClInclude>
+    <ClInclude Include="src\UI\CategoryMenu.h"><Filter>UI</Filter></ClInclude>
+    <ClInclude Include="src\UI\QuickMenu.h">
+      <Filter>UI</Filter>
+    </ClInclude>
+    <ClInclude Include="src\UI\OverlayRenderer.h">
+      <Filter>UI</Filter>
+    </ClInclude>
+    <ClInclude Include="src\UI\SettingsWindow.h"><Filter>UI</Filter></ClInclude>
+    <ClInclude Include="src\UI\PackBrowserWindow.h"><Filter>UI</Filter></ClInclude>
+    <ClInclude Include="src\resource.h">
+      <Filter>Resources</Filter>
+    </ClInclude>
+    <ClInclude Include="src\nexus\Nexus.h">
+      <Filter>Third Party\nexus</Filter>
+    </ClInclude>
+    <ClInclude Include="src\mumble\Mumble.h">
+      <Filter>Third Party\mumble</Filter>
+    </ClInclude>
+    <ClInclude Include="src\third_party\rapidxml.hpp">
+      <Filter>Third Party\parser</Filter>
+    </ClInclude>
+    <ClInclude Include="src\third_party\jsonxx.h"><Filter>Third Party\parser</Filter></ClInclude>
+    <ClInclude Include="src\imgui\imgui.h">
+      <Filter>Third Party\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="src\imgui\imgui_internal.h">
+      <Filter>Third Party\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="src\imgui\imconfig.h">
+      <Filter>Third Party\imgui</Filter>
+    </ClInclude>
+    <ResourceCompile Include="src\Taquito.rc">
+      <Filter>Resources</Filter>
+    </ResourceCompile>
+    <Image Include="src\Resources\taquito.png">
+      <Filter>Resources</Filter>
+    </Image>
+  </ItemGroup>
+</Project>

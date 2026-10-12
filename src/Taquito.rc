@@ -1,0 +1,2 @@
+#include "resource.h"
+IDR_TAQUITO_QUICKACCESS_ICON PNG "Resources\\taquito.png"
