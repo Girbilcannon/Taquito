@@ -1,4 +1,4 @@
-# Taquito XML Attributes (as of build 0.0.1.18)
+# Taquito XML Attributes (as of build 1.0.0.4)
 ## Supported Attributes
 
 | Guide group | Support | XML names, types and Taquito behavior |
