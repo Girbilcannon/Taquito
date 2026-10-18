@@ -1,4 +1,4 @@
-# Taquito XML Attributes (as of build 0.0.1.18)
+# Taquito XML Attributes (as of build 1.0.0.4)
 ## Supported Attributes
 
 | Guide group | Support | XML names, types and Taquito behavior |
@@ -6,12 +6,12 @@
 | Achievement | No | achievementId, achievementBit: integer; no account progress check. |
 | Alpha | Yes | alpha: float default 1; clamped opacity 0–1, multiplied by distance fade. |
 | AnimSpeed | Yes | animSpeed: float default 1; trail texture scroll, 0 stops it. |
-| AutoTrigger | No | autoTrigger: bool; no activation state. |
+| AutoTrigger | Yes | autoTrigger: bool; no activation state. (currently only for copy) |
 | Behavior | No | behavior: integer; no activation state. |
 | Bounce | No | bounce: no animation. |
 | CanFade | No | canFade: bool; no item bubble exemption. |
 | Color | Yes | color: color default #FFFFFF; tints image, optional last two hex digits set opacity. |
-| Copy | No | copy, copy-message: no clipboard action. |
+| Copy | Yes | copy, copy-message: no clipboard action. |
 | Cull | No | cull: no culling mode. |
 | DefaultToggle | No | defaultToggle: bool; user settings govern toggles, otherwise enabled. |
 | DisplayName | Yes | DisplayName: string; category menu label, falls back to name. |
@@ -21,7 +21,7 @@
 | HeightOffset | Yes | heightOffset: float default 1.5; world marker vertical offset, ignored for sticky image. |
 | IconFile | Yes | iconFile: file; marker and sticky PNG inside archive. |
 | IconSize | Yes | iconSize: float default 1; world size multiplier, ignored by sticky image. |
-| Info | No | info, infoRange: no interaction text. |
+| Info | Yes | info, infoRange: no interaction text. |
 | InvertBehavior | No | invertBehavior: no activation state. |
 | IsHidden | Yes | isHidden: bool default 0; removes category menu row, markers still render. |
 | IsSeparator | Yes | isSeparator: bool default 0; category menu heading without toggle. |
@@ -49,7 +49,7 @@
 | Toggle | No | toggle, toggleCategory: no interaction; manual category checkboxes still work. |
 | TrailData | Yes | TrailData: file; .trl archive path, providing map ID and points. |
 | TrailScale | Yes | trailScale: float default 1; multiplies 40 game inch world trail width. |
-| TriggerRange | No | triggerRange: no activation. |
+| TriggerRange | Yes | triggerRange: no activation. (currently only for copy) |
 | Type | Yes | type: dot-delimited string matching category path. |
 | Visibility | Yes | miniMapVisibility, mapVisibility, inGameVisibility: bool default 1; independent view switches. |
 
