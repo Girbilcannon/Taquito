@@ -1,6 +1,7 @@
 #include "QuickMenu.h"
 #include "CategoryMenu.h"
 #include "OverlayRenderer.h"
+#include "MarkerInteractions.h"
 #include "PackBrowserWindow.h"
 #include "SettingsWindow.h"
 #include "../Core/AppRuntime.h"
@@ -44,6 +45,7 @@ void ReceivePacks() {
     { std::lock_guard lock(loadMutex); ready.swap(loadedPacks); }
     if (!ready) return;
     if (loader.joinable()) loader.join();
+    MarkerInteractions::Reset();
     packs = std::move(*ready);
     AppSettings::Load(AppRuntime::GetAddonDirectory(), packs);
     if (auto* api = AppRuntime::GetApi()) {
@@ -67,7 +69,7 @@ void DrawMenu() {
             const bool tree=AppSettings::Get().nestingStyle==AppSettings::NestingStyle::Taquito;
             if(tree) ImGui::PushID(pack.path.string().c_str());
             for (auto& category : pack.root.children)
-                CategoryMenu::Draw(*category, AppSettings::Get().nestingStyle, CategoryChanged);
+                CategoryMenu::Draw(*category, AppSettings::Get().nestingStyle, CategoryChanged,MarkerInteractions::CopyCategory);
             if(tree) ImGui::PopID();
         }
         ImGui::Separator();
@@ -96,7 +98,7 @@ void DrawMenu() {
 }
 
 void QuickMenu::Initialize() { renderer.Initialize(AppRuntime::GetApi()); Refresh(); }
-void QuickMenu::Shutdown() { OnlinePacks::Stop(); if (loader.joinable()) loader.join(); Save(); renderer.Shutdown(); packs.clear(); showMenu = false; PackBrowserWindow::Close(); SettingsWindow::Close(); { std::lock_guard lock(loadMutex); loadedPacks.reset(); } }
+void QuickMenu::Shutdown() { OnlinePacks::Stop(); if (loader.joinable()) loader.join(); Save(); MarkerInteractions::Reset(); renderer.Shutdown(); packs.clear(); showMenu = false; PackBrowserWindow::Close(); SettingsWindow::Close(); { std::lock_guard lock(loadMutex); loadedPacks.reset(); } }
 void QuickMenu::RequestToggle() { toggleRequested.store(true, std::memory_order_release); }
 void QuickMenu::Render() {
     if(OnlinePacks::ConsumeReloadRequest()) Refresh();
@@ -107,6 +109,7 @@ void QuickMenu::Render() {
                   settings.miniTrailSize, settings.bigTrailSize,
                   settings.worldIconSize, settings.worldTrailSize,
                   settings.playerBubble, settings.bubbleRadius, settings.bubbleFeather);
+    MarkerInteractions::Render(packs,AppRuntime::GetMumble(),settings.world);
     DrawMenu();
     PackBrowserWindow::Render();
     SettingsWindow::Render(packs,renderer,loading.load(),Refresh,Save);

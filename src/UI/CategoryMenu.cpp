@@ -40,8 +40,8 @@ bool HasChildren(const TacoPack::Category& category) {
 std::string ContextId(const TacoPack::Category& category) {
     return "##NextTier_"+std::to_string(reinterpret_cast<std::uintptr_t>(&category));
 }
-void NextTierMenu(TacoPack::Category& category,bool checkboxClicked,bool taco,void (*changed)()) {
-    if(category.children.empty()) return;
+void NextTierMenu(TacoPack::Category& category,bool checkboxClicked,bool taco,void (*changed)(),CategoryMenu::CopyAction copy) {
+    if(category.children.empty() && category.copyText.empty()) return;
     const auto id=ContextId(category);
     bool clicked=checkboxClicked;
     {
@@ -51,7 +51,9 @@ void NextTierMenu(TacoPack::Category& category,bool checkboxClicked,bool taco,vo
     if(clicked)
         ImGui::OpenPopup(id.c_str());
     if(ImGui::BeginPopup(id.c_str())) {
-        if(ImGui::MenuItem("Enable All")) {
+        if(!category.copyText.empty() && ImGui::MenuItem("Copy text",nullptr,false,
+            copy && AppSettings::Get().clipboardMode!=AppSettings::ClipboardMode::Never)) copy(category.copyText,category.copyMessage);
+        if(!category.children.empty() && ImGui::MenuItem("Enable All")) {
             bool modified=false;
             for(auto& child:category.children) {
                 if(!child->hidden && !child->separator && !child->visible) {
@@ -60,7 +62,7 @@ void NextTierMenu(TacoPack::Category& category,bool checkboxClicked,bool taco,vo
             }
             if(modified && changed) changed();
         }
-        if(ImGui::MenuItem("Disable Next Tier")) {
+        if(!category.children.empty() && ImGui::MenuItem("Disable Next Tier")) {
             bool modified=false;
             for(auto& child:category.children) {
                 // Only direct child checkboxes; no recursive changes.
@@ -74,16 +76,23 @@ void NextTierMenu(TacoPack::Category& category,bool checkboxClicked,bool taco,vo
     }
 }
 }
-void CategoryMenu::Draw(TacoPack::Category& category,AppSettings::NestingStyle style,void (*changed)()) {
+void CategoryMenu::Draw(TacoPack::Category& category,AppSettings::NestingStyle style,void (*changed)(),CopyAction copy) {
     if(category.hidden) return;
     if(style==AppSettings::NestingStyle::Taco) ImGui::PushID(&category);
     else ImGui::PushID(category.key.c_str());
     const bool markLua=!category.parent && category.containsLua;
     const auto displayName=category.name+(markLua ? " (Contains Lua)" : "");
     if(category.separator) {
-        ImGui::Separator(); ImGui::TextDisabled("%s",displayName.c_str());
+        ImGui::Separator();
+        if(copy && !category.copyText.empty() && AppSettings::Get().clipboardMode!=AppSettings::ClipboardMode::Never) {
+            ParentMenuHover hover(style==AppSettings::NestingStyle::Taco);
+            ImGui::PushStyleColor(ImGuiCol_Text,ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+            if(ImGui::Selectable(displayName.c_str(),false,ImGuiSelectableFlags_DontClosePopups))
+                copy(category.copyText,category.copyMessage);
+            ImGui::PopStyleColor();
+        } else ImGui::TextDisabled("%s",displayName.c_str());
         Tip(category,ImGui::IsItemHovered());
-        NextTierMenu(category,false,style==AppSettings::NestingStyle::Taco,changed); ImGui::PopID(); return;
+        NextTierMenu(category,false,style==AppSettings::NestingStyle::Taco,changed,copy); ImGui::PopID(); return;
     }
     bool visible=category.visible;
     bool checkboxContext=false;
@@ -110,7 +119,7 @@ void CategoryMenu::Draw(TacoPack::Category& category,AppSettings::NestingStyle s
             const bool hovered=GImGui->HoveredWindow==parentWindow &&
                 parentWindow->DC.LastItemRect.Contains(ImGui::GetIO().MousePos);
             if(opened) {
-                for(auto& child:category.children) Draw(*child,style,changed);
+                for(auto& child:category.children) Draw(*child,style,changed,copy);
                 ImGui::EndMenu();
             }
             Tip(category,hovered);
@@ -121,16 +130,16 @@ void CategoryMenu::Draw(TacoPack::Category& category,AppSettings::NestingStyle s
             }
             Tip(category,ImGui::IsItemHovered());
         }
-        NextTierMenu(category,checkboxContext,true,changed);
+        NextTierMenu(category,checkboxContext,true,changed,copy);
         return;
     } else {
         bool expanded=false;
         if(!HasChildren(category)) ImGui::TextUnformatted(displayName.c_str());
         else expanded=ImGui::TreeNodeEx((displayName+"###"+category.name).c_str(),ImGuiTreeNodeFlags_SpanAvailWidth);
         Tip(category,ImGui::IsItemHovered());
-        NextTierMenu(category,checkboxContext,false,changed);
+        NextTierMenu(category,checkboxContext,false,changed,copy);
         if(expanded) {
-            for(auto& child:category.children) Draw(*child,style,changed);
+            for(auto& child:category.children) Draw(*child,style,changed,copy);
             ImGui::TreePop();
         }
     }

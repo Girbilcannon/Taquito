@@ -1,4 +1,5 @@
 #include "OverlayRenderer.h"
+#include "MapTrailRibbon.h"
 #include "../Core/VisualAttributes.h"
 #include "../imgui/imgui.h"
 #include <wincodec.h>
@@ -84,37 +85,6 @@ bool Clip(ImVec2& a, ImVec2& b, ImVec2 mn, ImVec2 mx) {
     auto edge=[&](float p,float q) { if (std::abs(p)<1e-6f) return q>=0; float r=q/p; if(p<0) t0=std::max(t0,r); else t1=std::min(t1,r); return t0<=t1; };
     if(!edge(-dx,a.x-mn.x)||!edge(dx,mx.x-a.x)||!edge(-dy,a.y-mn.y)||!edge(dy,mx.y-a.y)) return false;
     ImVec2 orig=a; b={orig.x+t1*dx,orig.y+t1*dy}; a={orig.x+t0*dx,orig.y+t0*dy}; return true;
-}
-void Ribbon(ImDrawList* draw, ImVec2 a, ImVec2 b, float width, ImU32 color,
-            ID3D11ShaderResourceView* texture, int imageWidth, int imageHeight,
-            double phase, unsigned& budget) {
-    float dx=b.x-a.x,dy=b.y-a.y,n=std::sqrt(dx*dx+dy*dy); if(n<.1f) return;
-    float nx=-dy/n*width*.5f,ny=dx/n*width*.5f;
-    if (!texture || imageWidth<=0 || imageHeight<=0 || !budget) {
-        draw->AddQuadFilled({a.x+nx,a.y+ny},{b.x+nx,b.y+ny},{b.x-nx,b.y-ny},{a.x-nx,a.y-ny},color);
-        return;
-    }
-    const double tile=VisualAttributes::TileLength(width,imageWidth,imageHeight,1.0);
-    double from=0;
-    while (from<n && budget) {
-        const double offset=std::fmod(std::fmod(phase+from,tile)+tile,tile);
-        // A rounded tile boundary must never leave 'from' unchanged.
-        const double to=std::min(static_cast<double>(n),from+std::max(.1,tile-offset));
-        if (!(to>from)) break;
-        const float v0=static_cast<float>(1.0-offset/tile);
-        const float v1=static_cast<float>(1.0-(offset+to-from)/tile);
-        ImVec2 p{a.x+dx*static_cast<float>(from/n),a.y+dy*static_cast<float>(from/n)};
-        ImVec2 q{a.x+dx*static_cast<float>(to/n),a.y+dy*static_cast<float>(to/n)};
-        draw->AddImageQuad(reinterpret_cast<ImTextureID>(texture),
-            {p.x+nx,p.y+ny},{q.x+nx,q.y+ny},{q.x-nx,q.y-ny},{p.x-nx,p.y-ny},
-            {0,v0},{0,v1},{1,v1},{1,v0},color);
-        from=to;
-        --budget;
-    }
-    if (from<n) {
-        ImVec2 p{a.x+dx*static_cast<float>(from/n),a.y+dy*static_cast<float>(from/n)};
-        draw->AddQuadFilled({p.x+nx,p.y+ny},{b.x+nx,b.y+ny},{b.x-nx,b.y-ny},{p.x-nx,p.y-ny},color);
-    }
 }
 void GroundRibbon(ImDrawList* draw, const Projection& proj, Vec3 avatar, Vec3 a, Vec3 b,
                   float width, const TacoPack::Style& style, ID3D11ShaderResourceView* texture,
@@ -218,11 +188,40 @@ void GroundRibbon(ImDrawList* draw, const Projection& proj, Vec3 avatar, Vec3 a,
 
 bool Renderer::Initialize(AddonAPI_t* api) {
     api_=api; auto* swap = static_cast<IDXGISwapChain*>(api->SwapChain);
-    return swap && SUCCEEDED(swap->GetDevice(__uuidof(ID3D11Device), reinterpret_cast<void**>(device_.GetAddressOf())));
+    if(!swap || FAILED(swap->GetDevice(__uuidof(ID3D11Device), reinterpret_cast<void**>(device_.GetAddressOf())))) return false;
+    D3D11_SAMPLER_DESC sampler{};
+    sampler.Filter=D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+    sampler.AddressU=D3D11_TEXTURE_ADDRESS_CLAMP;
+    sampler.AddressV=D3D11_TEXTURE_ADDRESS_WRAP;
+    sampler.AddressW=D3D11_TEXTURE_ADDRESS_CLAMP;
+    sampler.MaxAnisotropy=1;
+    sampler.ComparisonFunc=D3D11_COMPARISON_ALWAYS;
+    sampler.MaxLOD=D3D11_FLOAT32_MAX;
+    if(FAILED(device_->CreateSamplerState(&sampler,mapSampler_.ReleaseAndGetAddressOf()))) {
+        api_->Log(LOGL_WARNING,"Taquito","Could not initialize repeating map trail sampler.");
+    }
+    return true;
 }
+void Renderer::BeginMapSampler(const ImDrawList*,const ImDrawCmd* command) {
+    auto* renderer=static_cast<Renderer*>(command->UserCallbackData);
+    Microsoft::WRL::ComPtr<ID3D11DeviceContext> context;
+    renderer->device_->GetImmediateContext(context.GetAddressOf());
+    context->PSGetSamplers(0,1,renderer->savedMapSampler_.ReleaseAndGetAddressOf());
+    auto* sampler=renderer->mapSampler_.Get();
+    context->PSSetSamplers(0,1,&sampler);
+}
+void Renderer::EndMapSampler(const ImDrawList*,const ImDrawCmd* command) {
+    auto* renderer=static_cast<Renderer*>(command->UserCallbackData);
+    Microsoft::WRL::ComPtr<ID3D11DeviceContext> context;
+    renderer->device_->GetImmediateContext(context.GetAddressOf());
+    auto* sampler=renderer->savedMapSampler_.Get();
+    context->PSSetSamplers(0,1,&sampler);
+    renderer->savedMapSampler_.Reset();
+}
+
 void Renderer::ClearTextures() { images_.clear(); }
 void Renderer::RequestTextureClear() { clearTexturesNextFrame_ = true; }
-void Renderer::Shutdown() { ClearTextures(); device_.Reset(); api_=nullptr; }
+void Renderer::Shutdown() { ClearTextures(); savedMapSampler_.Reset(); mapSampler_.Reset(); device_.Reset(); api_=nullptr; }
 Renderer::Image* Renderer::Texture(const TacoPack::Pack& pack, const std::string& name) {
     if (!device_ || name.empty()) return nullptr;
     auto key=pack.path.string()+"|"+name; auto found=images_.find(key); if(found!=images_.end()) return found->second.view ? &found->second : nullptr;
@@ -276,7 +275,7 @@ void Renderer::Draw(const std::vector<TacoPack::Pack>& packs, const Mumble::Data
     // Map changes release privately owned textures before the next map loads them on demand.
     if(map != lastMap_) { ClearTextures(); lastMap_=map; }
     newTexturesThisFrame_ = 0;
-    unsigned worldTileBudget = 4096, mapTileBudget = 4096; // Bounded independently.
+    unsigned worldTileBudget = 4096; // World rendering retains its existing tile limit.
     auto io=ImGui::GetIO(); auto* draw=ImGui::GetBackgroundDrawList();
     const Vec3 avatar=V(m->AvatarPosition),cam=V(m->CameraPosition);
     Projection proj; proj.cam=cam; proj.forward=Normal(V(m->CameraFront));
@@ -328,11 +327,40 @@ void Renderer::Draw(const std::vector<TacoPack::Pack>& packs, const Mumble::Data
     }
     const TacoPack::Marker* hoveredMarker = nullptr;
     for(const auto& pack:packs) {
+        if(mapSampler_ && mp.valid && (m->Context.IsMapOpen ? big : mini)) {
+            draw->AddCallback(BeginMapSampler,this);
+            for(const auto& t:pack.trails) {
+                if(t.map!=map || !TacoPack::IsVisible(t.category) ||
+                    !(m->Context.IsMapOpen ? t.style.bigMap : t.style.miniMap)) continue;
+                Image* img=Texture(pack,t.texture);
+                // Loading/missing textures never become opaque colored bands.
+                if(!img) continue;
+                draw->PushClipRect(mp.min,mp.max,true);
+                for(const auto& strip:t.strips) {
+                    double phase=0;
+                    for(size_t i=1;i<strip.size();++i) {
+                        ImVec2 a=mp.Screen(strip[i-1]), b=mp.Screen(strip[i]);
+                        const ImVec2 original=a;
+                        const float fullLength=std::hypot(b.x-a.x,b.y-a.y);
+                        if(Clip(a,b,mp.min,mp.max)) {
+                            const float width=VisualAttributes::MapTrailWidth(mapDisplaySize(t.style,mapTrailMultiplier),t.style.trailScale);
+                            const double tile=VisualAttributes::TileLength(width,img ? img->width : 0,img ? img->height : 0,1.0);
+                            MapTrailRibbon::Draw(draw,a,b,width,
+                                Tint(t.style,t.style.alpha),reinterpret_cast<ImTextureID>(img->view.Get()),img->width,img->height,
+                                phase+std::hypot(a.x-original.x,a.y-original.y)
+                                    + VisualAttributes::AnimationOffset(ImGui::GetTime(),t.style.animSpeed,tile));
+                        }
+                        if(std::isfinite(fullLength)) phase+=fullLength;
+                    }
+                }
+                draw->PopClipRect();
+            }
+            draw->AddCallback(EndMapSampler,this);
+        }
         for(const auto& t:pack.trails) {
             if(t.map!=map || !TacoPack::IsVisible(t.category)) continue;
             bool inWorld=world && proj.valid && t.style.inWorld && !m->Context.IsMapOpen;
-            bool onMap=mp.valid && (m->Context.IsMapOpen ? big && t.style.bigMap : mini && t.style.miniMap);
-            if(!inWorld && !onMap) continue;
+            if(!inWorld) continue;
             Image* img=Texture(pack,t.texture); auto* texture=img ? img->view.Get():nullptr;
             // The map clip applies only to map geometry. Applying it before
             // the world pass clipped every visible world trail to the compass.
@@ -359,27 +387,7 @@ void Renderer::Draw(const std::vector<TacoPack::Pack>& packs, const Mumble::Data
                     if(std::isfinite(fullLength)) phase+=fullLength;
                 }
             }
-            if(onMap) {
-                draw->PushClipRect(mp.min,mp.max,true);
-                for(const auto& strip:t.strips) {
-                    double phase=0;
-                    for(size_t i=1;i<strip.size();++i) {
-                        ImVec2 a=mp.Screen(strip[i-1]), b=mp.Screen(strip[i]);
-                        const ImVec2 original=a;
-                        const float fullLength=std::hypot(b.x-a.x,b.y-a.y);
-                        if(Clip(a,b,mp.min,mp.max)) {
-                            const float width=VisualAttributes::MapTrailWidth(mapDisplaySize(t.style,mapTrailMultiplier),t.style.trailScale);
-                            const double tile=VisualAttributes::TileLength(width,img ? img->width : 0,img ? img->height : 0,1.0);
-                            Ribbon(draw,a,b,width,
-                                Tint(t.style,t.style.alpha),texture,img ? img->width : 0,img ? img->height : 0,
-                                phase+std::hypot(a.x-original.x,a.y-original.y)
-                                    + VisualAttributes::AnimationOffset(ImGui::GetTime(),t.style.animSpeed,tile),mapTileBudget);
-                        }
-                        if(std::isfinite(fullLength)) phase+=fullLength;
-                    }
-                }
-                draw->PopClipRect();
-            }
+
         }
         for(const auto& p:pack.markers) {
             if(p.map!=map || !TacoPack::IsVisible(p.category)) continue;

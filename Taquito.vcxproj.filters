@@ -28,6 +28,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\Entry.cpp" />
+    <ClCompile Include="src\UI\MarkerInteractions.cpp"><Filter>UI</Filter></ClCompile>
     <ClCompile Include="src\UI\CategoryMenu.cpp"><Filter>UI</Filter></ClCompile>
     <ClCompile Include="src\Core\AppRuntime.cpp">
       <Filter>Core</Filter>
@@ -75,6 +76,9 @@
     </ClInclude>
     <ClInclude Include="src\Core\OnlinePacks.h"><Filter>Core</Filter></ClInclude>
     <ClInclude Include="src\Core\InstalledPacks.h"><Filter>Core</Filter></ClInclude>
+    <ClInclude Include="src\UI\MarkerInteractions.h"><Filter>UI</Filter></ClInclude>
+    <ClInclude Include="src\Core\MarkerActions.h"><Filter>Core</Filter></ClInclude>
+    <ClInclude Include="src\UI\MapTrailRibbon.h"><Filter>UI</Filter></ClInclude>
     <ClInclude Include="src\Core\VisualAttributes.h"><Filter>Core</Filter></ClInclude>
     <ClInclude Include="src\UI\CategoryMenu.h"><Filter>UI</Filter></ClInclude>
     <ClInclude Include="src\UI\QuickMenu.h">

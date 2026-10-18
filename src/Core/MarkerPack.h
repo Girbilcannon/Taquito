@@ -9,6 +9,9 @@
 namespace TacoPack {
 struct Vec3 { float x = 0, y = 0, z = 0; };
 struct Style {
+    std::string info, copy, copyMessage;
+    float triggerRange = 2.0f, infoRange = 2.0f; // Meters; independent action/text radii.
+    bool autoTrigger = false;
     // Original XML values, case-normalized and inherited; unknown fields remain harmless.
     std::unordered_map<std::string, std::string> attributes;
     std::string icon, texture;
@@ -33,6 +36,7 @@ struct Category {
     Category(const Category&) = delete;
     Category& operator=(const Category&) = delete;
     std::string key, name;
+    std::string copyText, copyMessage; // Explicit category action; not inherited by separator labels.
     Style style;
     bool visible = true;
     bool hidden = false, separator = false;

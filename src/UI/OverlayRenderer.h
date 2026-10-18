@@ -8,6 +8,9 @@
 #include <wrl/client.h>
 #include <d3d11.h>
 
+struct ImDrawList;
+struct ImDrawCmd;
+
 class Renderer {
 public:
     bool Initialize(AddonAPI_t* api);
@@ -22,11 +25,14 @@ public:
               float worldIconSize, float worldTrailSize,
               bool playerBubble, float bubbleRadius, float bubbleFeather);
 private:
+    static void BeginMapSampler(const ImDrawList*,const ImDrawCmd*);
+    static void EndMapSampler(const ImDrawList*,const ImDrawCmd*);
     void ClearTextures();
     struct Image { Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> view; int width = 0, height = 0; };
     Image* Texture(const TacoPack::Pack& pack, const std::string& name);
     AddonAPI_t* api_ = nullptr;
     Microsoft::WRL::ComPtr<ID3D11Device> device_;
+    Microsoft::WRL::ComPtr<ID3D11SamplerState> mapSampler_,savedMapSampler_;
     std::unordered_map<std::string, Image> images_;
     uint32_t lastMap_ = 0;
     unsigned newTexturesThisFrame_ = 0;

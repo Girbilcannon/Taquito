@@ -32,6 +32,9 @@ void AppSettings::Load(const std::filesystem::path& directory, std::vector<TacoP
             int value=0;
             if (!(input >> value)) break;
             state.nestingStyle=value==1 ? NestingStyle::Taco : NestingStyle::Taquito;
+        } else if (kind == "clipboardMode") {
+            int value=0;if(!(input>>value)) break;
+            state.clipboardMode=static_cast<ClipboardMode>(std::clamp(value,0,2));
         } else if (kind == "worldIconDefaultV2") {
             if (!(input >> updatedWorldIconDefault)) break;
         } else if (kind == "miniSize" || kind == "bigSize" || kind == "miniIconSize" || kind == "miniTrailSize" ||
@@ -57,6 +60,7 @@ void AppSettings::Load(const std::filesystem::path& directory, std::vector<TacoP
             else if (kind == "mini") state.mini = value;
             else if (kind == "big") state.big = value;
             else if (kind == "playerBubble") state.playerBubble = value;
+            else if (kind == "showMarkerInfo") state.showMarkerInfo = value;
         }
     }
     // Old combined scales initialize both controls; explicit new values win in any order.
@@ -78,6 +82,7 @@ void AppSettings::Save(const std::filesystem::path& directory, const std::vector
     std::ofstream output(directory / "settings.txt", std::ios::trunc);
     if (!output) return;
     output << "nestingStyle " << static_cast<int>(state.nestingStyle) << '\n';
+    output << "clipboardMode " << static_cast<int>(state.clipboardMode) << "\nshowMarkerInfo " << state.showMarkerInfo << '\n';
     output << "world " << state.world << "\nmini " << state.mini << "\nbig " << state.big << '\n';
     output << "miniIconSize " << state.miniIconSize << "\nminiTrailSize " << state.miniTrailSize << '\n';
     output << "bigIconSize " << state.bigIconSize << "\nbigTrailSize " << state.bigTrailSize << '\n';

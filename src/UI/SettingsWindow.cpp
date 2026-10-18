@@ -52,6 +52,13 @@ void SettingsWindow::Render(const std::vector<TacoPack::Pack>& packs, const Rend
     changed |= ImGui::SliderFloat("In-world marker scale",&settings.worldIconSize,0.25f,3.0f,"%.2fx");
     changed |= ImGui::SliderFloat("In-world trail width",&settings.worldTrailSize,0.25f,3.0f,"%.2fx");
     ImGui::Separator();
+    changed |= ImGui::Checkbox("Show marker information",&settings.showMarkerInfo);
+    int clipboard=static_cast<int>(settings.clipboardMode);
+    if(ImGui::Combo("Marker clipboard",&clipboard,"Always (including auto-trigger)\0Only when interacted with\0Never\0\0")) {
+        settings.clipboardMode=static_cast<AppSettings::ClipboardMode>(clipboard);changed=true;
+    }
+    ImGui::TextWrapped("Nearby marker copy: click Copy text or use the Taquito marker interaction keybind (default Alt+F). Change the keybind in Nexus settings.");
+    ImGui::Separator();
     changed |= ImGui::Checkbox("Fade overlays around player",&settings.playerBubble);
     if(settings.playerBubble) {
         changed |= ImGui::SliderFloat("Clear area radius",&settings.bubbleRadius,1.0f,8.0f,"%.2f m");

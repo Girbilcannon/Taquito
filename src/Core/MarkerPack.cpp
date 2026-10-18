@@ -1,4 +1,5 @@
 #include "MarkerPack.h"
+#include "MarkerActions.h"
 #define MINIZ_NO_ZLIB_COMPATIBLE_NAMES
 #define MINIZ_HEADER_FILE_ONLY
 #include "../third_party/miniz.c"
@@ -65,6 +66,7 @@ void Apply(Style& st, Node* n) {
     st.stickyScale = F(n, "stickyScale", st.stickyScale);
     st.stickyDistance = std::max(0.0f, F(n, "stickyDistance", st.stickyDistance));
     st.stickyHideOriginal = B(n, "stickyHideOriginal", st.stickyHideOriginal);
+    MarkerActions::Populate(st);
     // Resolve rotation once during loading, including POI overrides of inherited axes.
     const char* names[]={"rotate-x","rotate-y","rotate-z"};
     float* axes[]={&st.rotation.x,&st.rotation.y,&st.rotation.z};
@@ -193,6 +195,10 @@ void Categories(Pack& pack, Node* parent, Category* root, const std::string& pre
         } while (start < raw.size());
         if (auto s = A(n, "DisplayName"); !s.empty()) current->name = s;
         Apply(current->style, n);
+        for(Attr* a=n->first_attribute();a;a=a->next_attribute()) {
+            if(Eq(a->name(),"copy")) current->copyText=a->value();
+            if(Eq(a->name(),"copy-message")) current->copyMessage=a->value();
+        }
         current->hidden = B(n,"isHidden",current->hidden);
         current->separator = B(n,"isSeparator",current->separator);
         Categories(pack, n, current, key);
