@@ -108,7 +108,8 @@ void QuickMenu::Render() {
                   settings.world, settings.mini, settings.big, settings.miniIconSize, settings.bigIconSize,
                   settings.miniTrailSize, settings.bigTrailSize,
                   settings.worldIconSize, settings.worldTrailSize,
-                  settings.playerBubble, settings.bubbleRadius, settings.bubbleFeather);
+                  settings.playerBubble, settings.bubbleRadius, settings.bubbleFeather,
+                  settings.mapTrailStyle==AppSettings::MapTrailStyle::BlishHUD);
     MarkerInteractions::Render(packs,AppRuntime::GetMumble(),settings.world);
     DrawMenu();
     PackBrowserWindow::Render();

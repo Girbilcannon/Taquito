@@ -4,8 +4,18 @@
 #include <cmath>
 
 namespace VisualAttributes {
+constexpr float WorldTrailBaseWidth=1.016f; // 40 game inches, full ribbon width.
+inline float WorldMarkerHalfSize(float focal,float depth,const TacoPack::Style& style,float multiplier) {
+    if(!(depth>0) || !std::isfinite(depth)) return 0;
+    // TacO's projected iconSize is a half-extent; the full quad is 2*iconSize meters.
+    return std::clamp(focal*style.iconSize*multiplier/depth,style.minSize,style.maxSize);
+}
+inline float WorldTrailWidth(float trailScale,float multiplier) {
+    return WorldTrailBaseWidth*std::max(0.0f,trailScale)*multiplier;
+}
 inline float MapTrailWidth(float displaySize,float trailScale) {
-    return std::clamp(displaySize*.5f*trailScale*2.5f,1.0f,100.0f);
+    // Return the full ribbon width; MapTrailRibbon applies the half-extent.
+    return std::clamp(displaySize*trailScale,1.0f,100.0f);
 }
 inline float Opacity(const TacoPack::Style& style, float meters) {
     const float alpha=std::clamp(style.alpha,0.0f,1.0f);
@@ -14,8 +24,10 @@ inline float Opacity(const TacoPack::Style& style, float meters) {
     if(style.fadeFar<=style.fadeNear) return inches<style.fadeFar ? alpha : 0.0f;
     return alpha*std::clamp((style.fadeFar-inches)/(style.fadeFar-style.fadeNear),0.0f,1.0f);
 }
-inline double TileLength(float width,int imageWidth,int imageHeight,double minimum) {
-    return std::max(minimum,imageWidth>0 && imageHeight>0 ? static_cast<double>(width)*imageHeight/imageWidth : static_cast<double>(width));
+inline double TileLength(float referenceLength,int /*imageWidth*/,int /*imageHeight*/,double minimum) {
+    // One complete texture repeat maps to the logical reference length, independent
+    // of bitmap resolution or aspect ratio. Preserve the entire texture UV range.
+    return std::max(minimum,static_cast<double>(referenceLength));
 }
 inline double AnimationOffset(double seconds,float speed,double tileLength) {
     return -seconds*speed*tileLength; // speed is texture repeats per second.

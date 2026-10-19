@@ -23,12 +23,12 @@ public:
               const Mumble::Identity* identity, bool world, bool mini, bool big,
               float miniIconSize, float bigIconSize, float miniTrailSize, float bigTrailSize,
               float worldIconSize, float worldTrailSize,
-              bool playerBubble, float bubbleRadius, float bubbleFeather);
+              bool playerBubble, float bubbleRadius, float bubbleFeather, bool blishMapTrails = false);
 private:
     static void BeginMapSampler(const ImDrawList*,const ImDrawCmd*);
     static void EndMapSampler(const ImDrawList*,const ImDrawCmd*);
     void ClearTextures();
-    struct Image { Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> view; int width = 0, height = 0; };
+    struct Image { Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> view; int width = 0, height = 0; uint32_t mapColor = 0; };
     Image* Texture(const TacoPack::Pack& pack, const std::string& name);
     AddonAPI_t* api_ = nullptr;
     Microsoft::WRL::ComPtr<ID3D11Device> device_;

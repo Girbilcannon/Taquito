@@ -45,12 +45,22 @@ void SettingsWindow::Render(const std::vector<TacoPack::Pack>& packs, const Rend
     changed |= ImGui::Checkbox("In-world markers and trails",&settings.world);
     changed |= ImGui::Checkbox("Minimap markers and trails",&settings.mini);
     changed |= ImGui::Checkbox("Full map markers and trails",&settings.big);
+    int trailStyle=static_cast<int>(settings.mapTrailStyle);
+    if(ImGui::Combo("Map Trail Visual Style",&trailStyle,"Taco\0Blish HUD\0\0")) {
+        settings.mapTrailStyle=static_cast<AppSettings::MapTrailStyle>(trailStyle);changed=true;
+    }
+    ImGui::TextWrapped(settings.mapTrailStyle==AppSettings::MapTrailStyle::BlishHUD ?
+        "Solid lines use texture-derived colors or the XML color. Width stays constant as you zoom; 1.00x is 4 pixels at normal UI scale." :
+        "Textured trails use the pack's map sizing and zoom attributes.");
     changed |= ImGui::SliderFloat("Minimap icon scale",&settings.miniIconSize,0.25f,3.0f,"%.2fx");
     changed |= ImGui::SliderFloat("Minimap trail line scale",&settings.miniTrailSize,0.25f,3.0f,"%.2fx");
     changed |= ImGui::SliderFloat("Full map icon scale",&settings.bigIconSize,0.25f,3.0f,"%.2fx");
     changed |= ImGui::SliderFloat("Full map trail line scale",&settings.bigTrailSize,0.25f,3.0f,"%.2fx");
     changed |= ImGui::SliderFloat("In-world marker scale",&settings.worldIconSize,0.25f,3.0f,"%.2fx");
     changed |= ImGui::SliderFloat("In-world trail width",&settings.worldTrailSize,0.25f,3.0f,"%.2fx");
+    ImGui::TextDisabled(settings.mapTrailStyle==AppSettings::MapTrailStyle::BlishHUD ?
+        "1.00x: map lines use 4 pixels; other controls use normalized pack sizes." :
+        "1.00x uses the normalized pack size for each control.");
     ImGui::Separator();
     changed |= ImGui::Checkbox("Show marker information",&settings.showMarkerInfo);
     int clipboard=static_cast<int>(settings.clipboardMode);

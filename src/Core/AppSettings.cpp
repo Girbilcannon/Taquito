@@ -11,7 +11,7 @@ void AppSettings::Load(const std::filesystem::path& directory, std::vector<TacoP
     // Filename aliases keep category toggles when a tracked pack changes its catalog filename.
     const auto installed=InstalledPacks::Load(directory / "installed-packs.json");
     std::string kind;
-    bool updatedWorldIconDefault = false;
+    bool normalizedScaleBaseline = false;
     float legacyMini = state.miniIconSize, legacyBig = state.bigIconSize;
     bool hasLegacyMini=false, hasLegacyBig=false;
     bool hasMiniIcon=false, hasMiniTrail=false, hasBigIcon=false, hasBigTrail=false;
@@ -32,11 +32,14 @@ void AppSettings::Load(const std::filesystem::path& directory, std::vector<TacoP
             int value=0;
             if (!(input >> value)) break;
             state.nestingStyle=value==1 ? NestingStyle::Taco : NestingStyle::Taquito;
+        } else if (kind == "mapTrailStyle") {
+            int value=0;if(!(input>>value)) break;
+            state.mapTrailStyle=value==1 ? MapTrailStyle::BlishHUD : MapTrailStyle::Taco;
         } else if (kind == "clipboardMode") {
             int value=0;if(!(input>>value)) break;
             state.clipboardMode=static_cast<ClipboardMode>(std::clamp(value,0,2));
-        } else if (kind == "worldIconDefaultV2") {
-            if (!(input >> updatedWorldIconDefault)) break;
+        } else if (kind == "scaleBaselineV1") {
+            if (!(input >> normalizedScaleBaseline)) break;
         } else if (kind == "miniSize" || kind == "bigSize" || kind == "miniIconSize" || kind == "miniTrailSize" ||
                    kind == "bigIconSize" || kind == "bigTrailSize" || kind == "worldIconSize" || kind == "worldTrailSize" ||
                    kind == "bubbleRadius" || kind == "bubbleFeather") {
@@ -72,9 +75,11 @@ void AppSettings::Load(const std::filesystem::path& directory, std::vector<TacoP
         if(!hasBigIcon) state.bigIconSize=legacyBig;
         if(!hasBigTrail) state.bigTrailSize=legacyBig;
     }
-    // 0.0.1.4 wrote 1.0 as the default. Upgrade that value once, then retain
-    // any deliberate 1.0 choice made with the new version.
-    if (!updatedWorldIconDefault && state.worldIconSize == 1.0f) state.worldIconSize = 2.0f;
+    // Establish one neutral baseline on upgrade; subsequent user adjustments persist.
+    if(!normalizedScaleBaseline) {
+        state.miniIconSize=state.miniTrailSize=state.bigIconSize=state.bigTrailSize=1.0f;
+        state.worldIconSize=state.worldTrailSize=1.0f;
+    }
 }
 void AppSettings::Save(const std::filesystem::path& directory, const std::vector<TacoPack::Pack>& packs) {
     std::error_code ec;
@@ -82,6 +87,7 @@ void AppSettings::Save(const std::filesystem::path& directory, const std::vector
     std::ofstream output(directory / "settings.txt", std::ios::trunc);
     if (!output) return;
     output << "nestingStyle " << static_cast<int>(state.nestingStyle) << '\n';
+    output << "mapTrailStyle " << static_cast<int>(state.mapTrailStyle) << '\n';
     output << "clipboardMode " << static_cast<int>(state.clipboardMode) << "\nshowMarkerInfo " << state.showMarkerInfo << '\n';
     output << "world " << state.world << "\nmini " << state.mini << "\nbig " << state.big << '\n';
     output << "miniIconSize " << state.miniIconSize << "\nminiTrailSize " << state.miniTrailSize << '\n';
@@ -89,7 +95,7 @@ void AppSettings::Save(const std::filesystem::path& directory, const std::vector
     output << "worldIconSize " << state.worldIconSize << "\nworldTrailSize " << state.worldTrailSize << '\n';
     output << "playerBubble " << state.playerBubble << "\nbubbleRadius " << state.bubbleRadius
            << "\nbubbleFeather " << state.bubbleFeather << '\n';
-    output << "worldIconDefaultV2 1\n";
+    output << "scaleBaselineV1 1\n";
     for (const auto& pack : packs) for (const auto& [key, category] : pack.categories)
         output << "category " << std::quoted(pack.path.filename().string()) << ' ' << key << ' ' << category->visible << '\n';
 }

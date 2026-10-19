@@ -38,7 +38,7 @@ void OnLoad(AddonAPI_t* value) {
     api->Events_Subscribe(EV_MUMBLE_IDENTITY_UPDATED, OnMumbleIdentityUpdated);
     api->QuickAccess_Add(QuickID, IconID, IconID, BindID, Name);
     api->GUI_Register(RT_Render, OnRender);
-    api->Log(LOGL_INFO, Name, "Taquito 1.0.0.4 loaded.");
+    api->Log(LOGL_INFO, Name, "Taquito 1.0.0.9 loaded.");
 }
 void OnUnload() {
     if (!api) return;
@@ -64,7 +64,7 @@ extern "C" __declspec(dllexport) AddonDefinition_t* GetAddonDef() {
     definition.Version.Major = 1;
     definition.Version.Minor = 0;
     definition.Version.Build = 0;
-    definition.Version.Revision = 4;
+    definition.Version.Revision = 9;
     definition.Author = "Girbilcannon.8259";
     definition.Description = "Lightweight TacO marker and trail pack viewer.";
     definition.Load = OnLoad;
