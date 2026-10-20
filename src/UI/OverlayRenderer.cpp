@@ -377,10 +377,15 @@ void Renderer::Draw(const std::vector<TacoPack::Pack>& packs, const Mumble::Data
                 double phase=0;
                 for(size_t i=1;i<strip.size();++i) {
                     Vec3 start=strip[i-1], end=strip[i];
+                    // World distance belongs to the complete strip, even when
+                    // this segment is behind the camera or cannot be projected.
+                    const double fullLength=std::sqrt(static_cast<double>(Dot(Sub(end,start),Sub(end,start))));
+                    if(!std::isfinite(fullLength)) continue;
+                    const double segmentPhase=phase;
+                    phase+=fullLength;
                     if(!ClipNear(proj,start,end)) continue;
                     ImVec2 a{},b{};
                     if(!proj.Screen(start,a) || !proj.Screen(end,b)) continue;
-                    const double fullLength=std::sqrt(static_cast<double>(Dot(Sub(strip[i],strip[i-1]),Sub(strip[i],strip[i-1]))));
                     if(t.style.alpha>.01f && Clip(a,b,{0,0},io.DisplaySize)) {
                         ++worldTrailSegments_;
                         // A horizontal cross-vector keeps the ribbon's face up
@@ -390,11 +395,10 @@ void Renderer::Draw(const std::vector<TacoPack::Pack>& packs, const Mumble::Data
                         const double tile=VisualAttributes::WorldTrailBaseWidth;
                         GroundRibbon(draw,proj,avatar,start,end,width,
                             t.style,texture,img ? img->width : 0,img ? img->height : 0,
-                            phase+std::sqrt(static_cast<double>(Dot(Sub(start,strip[i-1]),Sub(start,strip[i-1]))))
+                            segmentPhase+std::sqrt(static_cast<double>(Dot(Sub(start,strip[i-1]),Sub(start,strip[i-1]))))
                                 + VisualAttributes::AnimationOffset(ImGui::GetTime(),t.style.animSpeed,tile),
                             worldTileBudget,io.DisplaySize,playerBubble,bubbleRadius,bubbleFeather);
                     }
-                    if(std::isfinite(fullLength)) phase+=fullLength;
                 }
             }
 
