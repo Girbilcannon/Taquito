@@ -33,6 +33,16 @@ void AppRuntime::Initialize(AddonAPI_t* value, HMODULE addonModule) {
 void AppRuntime::Shutdown() { identity.store(nullptr); mumble = nullptr; api = nullptr; addonDirectory.clear(); packsDirectory.clear(); }
 AddonAPI_t* AppRuntime::GetApi() { return api; }
 Mumble::Data* AppRuntime::GetMumble() { return mumble; }
+Mumble::Data* AppRuntime::GetPlayableMumble() {
+    auto* data=GetMumble();
+    if(!data || !data->UITick || !data->Context.MapID) return nullptr;
+    if(api && api->DataLink_Get) {
+        const auto* link=static_cast<const NexusLinkData_t*>(api->DataLink_Get(DL_NEXUS_LINK));
+        // Nexus can identify loading before Mumble clears a stale map ID.
+        if(link && !link->IsGameplay) return nullptr;
+    }
+    return data;
+}
 Mumble::Identity* AppRuntime::GetMumbleIdentity() {
     auto* value = identity.load();
     if (!value && api) {

@@ -3,11 +3,14 @@
 #include "OverlayRenderer.h"
 #include "../Core/AppRuntime.h"
 #include "../Core/AppSettings.h"
+#include "../Core/PathingState.h"
 #include "../Core/OnlinePacks.h"
+#include "../TaquitoAPI.h"
 #include "../imgui/imgui.h"
 #include <Windows.h>
 #include <shellapi.h>
 #include <cmath>
+#include <cfloat>
 
 #pragma comment(lib, "shell32.lib")
 
@@ -20,60 +23,83 @@ void SettingsWindow::Close() { shown=false; }
 void SettingsWindow::Render(const std::vector<TacoPack::Pack>& packs, const Renderer& renderer,
                             bool loading, void (*reload)(), void (*save)()) {
     if(!shown) return;
-    ImGui::SetNextWindowSize({590,540},ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize({620,440},ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSizeConstraints({520,320},{FLT_MAX,FLT_MAX});
     if(!ImGui::Begin("Taquito Settings##Taquito",&shown,ImGuiWindowFlags_NoSavedSettings)) {
         ImGui::End(); return;
     }
     const auto& folder=AppRuntime::GetPacksDirectory();
-    ImGui::TextWrapped("Drop .taco and .zip marker packs into: %s",folder.string().c_str());
-    if(ImGui::Button("Reload packs")) reload();
-    ImGui::SameLine();
-    if(ImGui::Button("Open packs folder")) ShellExecuteW(nullptr,L"open",folder.c_str(),nullptr,nullptr,SW_SHOWNORMAL);
-    ImGui::SameLine();
-    if(ImGui::Button("Download Marker Packs...")) PackBrowserWindow::Open();
-    ImGui::Separator();
-    // These switches multiply XML-defined sizes; save only when an actual control changes.
     auto& settings=AppSettings::Get();
     bool changed=false;
-    int nesting=static_cast<int>(settings.nestingStyle);
-    if(ImGui::Combo("Nesting Style",&nesting,"Taquito\0Taco\0\0")) {
-        settings.nestingStyle=static_cast<AppSettings::NestingStyle>(nesting); changed=true;
+    ImGui::TextDisabled("Taquito " TAQUITO_VERSION);
+    ImGui::Spacing();
+    if(ImGui::CollapsingHeader("Display",ImGuiTreeNodeFlags_DefaultOpen)) {
+        changed |= ImGui::Checkbox("In-world markers and trails",&settings.world);
+        changed |= ImGui::Checkbox("Minimap markers and trails",&settings.mini);
+        changed |= ImGui::Checkbox("Full map markers and trails",&settings.big);
+        ImGui::Spacing();
+        int trailStyle=static_cast<int>(settings.mapTrailStyle);
+        if(ImGui::Combo("Map trail style",&trailStyle,"Taco\0Blish HUD\0\0")) {
+            settings.mapTrailStyle=static_cast<AppSettings::MapTrailStyle>(trailStyle);changed=true;
+        }
+        if(ImGui::IsItemHovered()) ImGui::SetTooltip(settings.mapTrailStyle==AppSettings::MapTrailStyle::BlishHUD ?
+            "Solid lines use texture-derived colors or the XML color. Width stays constant as you zoom; 1.00x is 4 pixels at normal UI scale." :
+            "Textured trails use the pack's map sizing and zoom attributes.");
+        ImGui::Spacing();
     }
-    ImGui::TextDisabled(settings.nestingStyle==AppSettings::NestingStyle::Taco ?
-        "Hover over an arrow to open its child menu." : "Expand categories inside the same menu.");
-    ImGui::Separator();
-    changed |= ImGui::Checkbox("In-world markers and trails",&settings.world);
-    changed |= ImGui::Checkbox("Minimap markers and trails",&settings.mini);
-    changed |= ImGui::Checkbox("Full map markers and trails",&settings.big);
-    int trailStyle=static_cast<int>(settings.mapTrailStyle);
-    if(ImGui::Combo("Map Trail Visual Style",&trailStyle,"Taco\0Blish HUD\0\0")) {
-        settings.mapTrailStyle=static_cast<AppSettings::MapTrailStyle>(trailStyle);changed=true;
+    if(ImGui::CollapsingHeader("Scale")) {
+        ImGui::TextDisabled("In world");
+        changed |= ImGui::SliderFloat("Marker scale##World",&settings.worldIconSize,0.25f,3.0f,"%.2fx");
+        changed |= ImGui::SliderFloat("Trail width##World",&settings.worldTrailSize,0.25f,3.0f,"%.2fx");
+        ImGui::Spacing();
+        ImGui::TextDisabled("Minimap");
+        changed |= ImGui::SliderFloat("Icon scale##Mini",&settings.miniIconSize,0.25f,3.0f,"%.2fx");
+        changed |= ImGui::SliderFloat("Trail width##Mini",&settings.miniTrailSize,0.25f,3.0f,"%.2fx");
+        ImGui::Spacing();
+        ImGui::TextDisabled("Full map");
+        changed |= ImGui::SliderFloat("Icon scale##Full",&settings.bigIconSize,0.25f,3.0f,"%.2fx");
+        changed |= ImGui::SliderFloat("Trail width##Full",&settings.bigTrailSize,0.25f,3.0f,"%.2fx");
+        ImGui::TextWrapped("1.00x uses normalized pack sizes. Blish HUD map lines use 4 pixels at normal UI scale.");
+        if(ImGui::Button("Reset all scales to 1.00x")) {
+            settings.worldIconSize=settings.worldTrailSize=settings.miniIconSize=settings.miniTrailSize=
+                settings.bigIconSize=settings.bigTrailSize=1.0f;
+            changed=true;
+        }
+        ImGui::Spacing();
     }
-    ImGui::TextWrapped(settings.mapTrailStyle==AppSettings::MapTrailStyle::BlishHUD ?
-        "Solid lines use texture-derived colors or the XML color. Width stays constant as you zoom; 1.00x is 4 pixels at normal UI scale." :
-        "Textured trails use the pack's map sizing and zoom attributes.");
-    changed |= ImGui::SliderFloat("Minimap icon scale",&settings.miniIconSize,0.25f,3.0f,"%.2fx");
-    changed |= ImGui::SliderFloat("Minimap trail line scale",&settings.miniTrailSize,0.25f,3.0f,"%.2fx");
-    changed |= ImGui::SliderFloat("Full map icon scale",&settings.bigIconSize,0.25f,3.0f,"%.2fx");
-    changed |= ImGui::SliderFloat("Full map trail line scale",&settings.bigTrailSize,0.25f,3.0f,"%.2fx");
-    changed |= ImGui::SliderFloat("In-world marker scale",&settings.worldIconSize,0.25f,3.0f,"%.2fx");
-    changed |= ImGui::SliderFloat("In-world trail width",&settings.worldTrailSize,0.25f,3.0f,"%.2fx");
-    ImGui::TextDisabled(settings.mapTrailStyle==AppSettings::MapTrailStyle::BlishHUD ?
-        "1.00x: map lines use 4 pixels; other controls use normalized pack sizes." :
-        "1.00x uses the normalized pack size for each control.");
-    ImGui::Separator();
-    changed |= ImGui::Checkbox("Show marker information",&settings.showMarkerInfo);
-    int clipboard=static_cast<int>(settings.clipboardMode);
-    if(ImGui::Combo("Marker clipboard",&clipboard,"Always (including auto-trigger)\0Only when interacted with\0Never\0\0")) {
-        settings.clipboardMode=static_cast<AppSettings::ClipboardMode>(clipboard);changed=true;
+    if(ImGui::CollapsingHeader("Marker Interaction")) {
+        changed |= ImGui::Checkbox("Show marker information",&settings.showMarkerInfo);
+        int clipboard=static_cast<int>(settings.clipboardMode);
+        if(ImGui::Combo("Marker clipboard",&clipboard,"Always (including auto-trigger)\0Only when interacted with\0Never\0\0")) {
+            settings.clipboardMode=static_cast<AppSettings::ClipboardMode>(clipboard);changed=true;
+        }
+        if(ImGui::IsItemHovered()) ImGui::SetTooltip("Nearby marker copy: click Copy text or use the Taquito marker interaction keybind (default Alt+F). Change the keybind in Nexus settings.");
+        ImGui::Spacing();
     }
-    ImGui::TextWrapped("Nearby marker copy: click Copy text or use the Taquito marker interaction keybind (default Alt+F). Change the keybind in Nexus settings.");
-    ImGui::Separator();
-    changed |= ImGui::Checkbox("Fade overlays around player",&settings.playerBubble);
-    if(settings.playerBubble) {
-        changed |= ImGui::SliderFloat("Clear area radius",&settings.bubbleRadius,1.0f,8.0f,"%.2f m");
-        changed |= ImGui::SliderFloat("Soft fade width",&settings.bubbleFeather,0.25f,3.0f,"%.2f m");
-        ImGui::TextDisabled("Affects in-world markers and trails only.");
+    if(ImGui::CollapsingHeader("Menu and Appearance")) {
+        int nesting=static_cast<int>(settings.nestingStyle);
+        if(ImGui::Combo("Nesting style",&nesting,"Taquito\0Taco\0\0")) {
+            settings.nestingStyle=static_cast<AppSettings::NestingStyle>(nesting);changed=true;
+        }
+        if(ImGui::IsItemHovered()) ImGui::SetTooltip(settings.nestingStyle==AppSettings::NestingStyle::Taco ?
+            "Hover over an arrow to open its child menu." : "Expand categories inside the same menu.");
+        ImGui::Spacing();
+        changed |= ImGui::Checkbox("Fade overlays around player",&settings.playerBubble);
+        if(settings.playerBubble) {
+            changed |= ImGui::SliderFloat("Clear area radius",&settings.bubbleRadius,1.0f,8.0f,"%.2f m");
+            changed |= ImGui::SliderFloat("Soft fade width",&settings.bubbleFeather,0.25f,3.0f,"%.2f m");
+            ImGui::TextDisabled("Affects in-world markers and trails only.");
+        }
+        ImGui::Spacing();
+    }
+    if(ImGui::CollapsingHeader("Marker Packs")) {
+        if(ImGui::Button("Download marker packs...")) PackBrowserWindow::Open();
+        ImGui::SameLine();
+        if(ImGui::Button("Reload packs")) reload();
+        if(ImGui::Button("Open packs folder")) ShellExecuteW(nullptr,L"open",folder.c_str(),nullptr,nullptr,SW_SHOWNORMAL);
+        ImGui::TextWrapped("Add .taco or .zip packs here: %s",folder.string().c_str());
+        if(loading) ImGui::TextDisabled("Reading packs...");
+        ImGui::Spacing();
     }
     if(changed) save();
     ImGui::Separator();
@@ -82,6 +108,21 @@ void SettingsWindow::Render(const std::vector<TacoPack::Pack>& packs, const Rend
         resetDiagnostics=false;
     }
     if(ImGui::CollapsingHeader("Diagnostics##TaquitoDiagnostics")) {
+        const auto bridge=PathingState::GetDiagnostics();
+        ImGui::TextUnformatted("Pie UI sharing");
+        ImGui::Text("Sharing: %s; packs: %s",bridge.active ? "enabled" : "disabled",bridge.ready ? "ready" : "loading");
+        ImGui::Text("Packs in message: %zu (%zu loaded); minimap requested: %s",bridge.packs,bridge.loadedPacks,bridge.minimap ? "yes" : "no");
+        ImGui::Text("State revision: %llu",static_cast<unsigned long long>(bridge.revision));
+        ImGui::Text("Messages sent: %llu; requests received: %llu",static_cast<unsigned long long>(bridge.events),static_cast<unsigned long long>(bridge.requests));
+        ImGui::TextWrapped("Pack folder: %s",AppRuntime::GetPacksDirectory().string().c_str());
+        if(ImGui::Button("Copy Pie UI JSON")) {
+            const auto json=PathingState::GetSnapshot();
+            if(!json.empty()) ImGui::SetClipboardText(json.c_str());
+        }
+        ImGui::SameLine();
+        if(ImGui::Button("Resend to Pie UI")) PathingState::Rebroadcast();
+        ImGui::TextWrapped("Sent means Taquito raised the event; Pie UI does not send a receipt. Requests may come from any addon. Zero requests does not prove nobody is listening.");
+        ImGui::Separator();
         size_t markerCount=0,trailCount=0;
         for(const auto& pack:packs) { markerCount+=pack.markers.size(); trailCount+=pack.trails.size(); }
         ImGui::Text("%zu packs, %zu markers, %zu trails%s",packs.size(),markerCount,trailCount,

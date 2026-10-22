@@ -8,6 +8,8 @@ namespace AppRuntime {
     void Shutdown();
     AddonAPI_t* GetApi();
     Mumble::Data* GetMumble();
+    // Null during loading/character selection or when there is no valid map.
+    Mumble::Data* GetPlayableMumble();
     Mumble::Identity* GetMumbleIdentity();
     void SetMumbleIdentity(Mumble::Identity* value);
     const std::filesystem::path& GetAddonDirectory();

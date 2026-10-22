@@ -272,11 +272,12 @@ void Renderer::Draw(const std::vector<TacoPack::Pack>& packs, const Mumble::Data
     // same frame must not release a texture until those commands are consumed.
     if (clearTexturesNextFrame_) { ClearTextures(); clearTexturesNextFrame_ = false; }
     worldTrailSegments_ = 0;
-    if(!m || !m->UITick || !device_) return;
-    const auto map=m->Context.MapID; if(!map) return;
-    // Map changes release privately owned textures before the next map loads them on demand.
-    if(map != lastMap_) { ClearTextures(); lastMap_=map; }
     newTexturesThisFrame_ = 0;
+    const uint32_t map=m && m->UITick ? m->Context.MapID : 0;
+    // Include loss of the playable map: release resources before returning.
+    // This runs at frame start, before any new SRV draw commands are queued.
+    if(map != lastMap_ || (!map && !images_.empty())) { ClearTextures(); lastMap_=map; }
+    if(!map || !device_) return;
     unsigned worldTileBudget = 4096; // World rendering retains its existing tile limit.
     auto io=ImGui::GetIO(); auto* draw=ImGui::GetBackgroundDrawList();
     const Vec3 avatar=V(m->AvatarPosition),cam=V(m->CameraPosition);

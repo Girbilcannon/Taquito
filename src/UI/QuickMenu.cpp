@@ -8,6 +8,7 @@
 #include "../Core/AppSettings.h"
 #include "../Core/MarkerPack.h"
 #include "../Core/OnlinePacks.h"
+#include "../Core/PathingState.h"
 #include "../imgui/imgui.h"
 #include <atomic>
 #include <mutex>
@@ -24,14 +25,21 @@ std::thread loader;
 std::mutex loadMutex;
 std::optional<std::vector<TacoPack::Pack>> loadedPacks;
 std::atomic_bool loading{false};
+bool packsReady=false;
+std::vector<InstalledPacks::Record> packCatalog;
 
-void Save() { AppSettings::Save(AppRuntime::GetAddonDirectory(), packs); }
+void PublishPathingState() {
+    PathingState::Update(packs,AppSettings::Get(),AppRuntime::GetPacksDirectory(),packCatalog,packsReady);
+}
+void Save() { AppSettings::Save(AppRuntime::GetAddonDirectory(), packs); PublishPathingState(); }
 // Only the loader thread parses archives; ReceivePacks swaps them onto the render thread.
 void Refresh() {
     if (loader.joinable()) loader.join();
     renderer.RequestTextureClear();
     { std::lock_guard lock(loadMutex); loadedPacks.reset(); }
     loading.store(true, std::memory_order_release);
+    packsReady=false;
+    PublishPathingState();
     auto directory = AppRuntime::GetPacksDirectory();
     loader = std::thread([directory] {
         auto result = TacoPack::LoadFolder(directory);
@@ -48,6 +56,9 @@ void ReceivePacks() {
     MarkerInteractions::Reset();
     packs = std::move(*ready);
     AppSettings::Load(AppRuntime::GetAddonDirectory(), packs);
+    packCatalog=InstalledPacks::Load(AppRuntime::GetAddonDirectory()/"installed-packs.json");
+    packsReady=true;
+    PublishPathingState();
     if (auto* api = AppRuntime::GetApi()) {
         const auto message = "Loaded " + std::to_string(packs.size()) + " marker pack(s).";
         api->Log(LOGL_INFO, "Taquito", message.c_str());
@@ -97,20 +108,26 @@ void DrawMenu() {
 }
 }
 
-void QuickMenu::Initialize() { renderer.Initialize(AppRuntime::GetApi()); Refresh(); }
+void QuickMenu::Initialize() {
+    AppSettings::Load(AppRuntime::GetAddonDirectory(),packs);
+    auto* api=AppRuntime::GetApi();
+    PathingState::Initialize(api ? api->Events_Raise : nullptr);
+    renderer.Initialize(api); Refresh();
+}
 void QuickMenu::Shutdown() { OnlinePacks::Stop(); if (loader.joinable()) loader.join(); Save(); MarkerInteractions::Reset(); renderer.Shutdown(); packs.clear(); showMenu = false; PackBrowserWindow::Close(); SettingsWindow::Close(); { std::lock_guard lock(loadMutex); loadedPacks.reset(); } }
 void QuickMenu::RequestToggle() { toggleRequested.store(true, std::memory_order_release); }
 void QuickMenu::Render() {
     if(OnlinePacks::ConsumeReloadRequest()) Refresh();
     ReceivePacks();
     auto& settings = AppSettings::Get();
-    renderer.Draw(packs, AppRuntime::GetMumble(), AppRuntime::GetMumbleIdentity(),
+    auto* playableMumble=AppRuntime::GetPlayableMumble();
+    renderer.Draw(packs, playableMumble, AppRuntime::GetMumbleIdentity(),
                   settings.world, settings.mini, settings.big, settings.miniIconSize, settings.bigIconSize,
                   settings.miniTrailSize, settings.bigTrailSize,
                   settings.worldIconSize, settings.worldTrailSize,
                   settings.playerBubble, settings.bubbleRadius, settings.bubbleFeather,
                   settings.mapTrailStyle==AppSettings::MapTrailStyle::BlishHUD);
-    MarkerInteractions::Render(packs,AppRuntime::GetMumble(),settings.world);
+    MarkerInteractions::Render(packs,playableMumble,settings.world);
     DrawMenu();
     PackBrowserWindow::Render();
     SettingsWindow::Render(packs,renderer,loading.load(),Refresh,Save);

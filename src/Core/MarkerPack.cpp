@@ -294,6 +294,7 @@ void Load(const std::filesystem::path& path, Pack& pack, std::unordered_set<std:
             rapidxml::xml_document<> parsed; parsed.parse<0>(mutableXml.data());
             for (Node* root = parsed.first_node(); root; root = root->next_sibling()) {
                 if (!Eq(root->name(), "OverlayData")) continue;
+                pack.loaded = true;
                 if (pass == 0) Categories(pack, root, &pack.root, "");
                 else Entries(pack, zip, index, root, doc.name, categoryFallbacks, seenGuids);
             }

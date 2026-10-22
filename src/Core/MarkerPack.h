@@ -54,6 +54,7 @@ struct Pack {
     Pack& operator=(const Pack&) = delete;
     std::filesystem::path path;
     std::string name;
+    bool loaded = false; // At least one readable OverlayData XML document.
     Category root;
     std::unordered_map<std::string, Category*> categories;
     std::vector<Marker> markers;

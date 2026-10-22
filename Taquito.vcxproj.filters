@@ -28,6 +28,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\Entry.cpp" />
+    <ClCompile Include="src\Core\PathingState.cpp"><Filter>Core</Filter></ClCompile>
     <ClCompile Include="src\UI\MarkerInteractions.cpp"><Filter>UI</Filter></ClCompile>
     <ClCompile Include="src\UI\CategoryMenu.cpp"><Filter>UI</Filter></ClCompile>
     <ClCompile Include="src\Core\AppRuntime.cpp">
@@ -81,6 +82,8 @@
     <ClInclude Include="src\UI\MapTrailRibbon.h"><Filter>UI</Filter></ClInclude>
     <ClInclude Include="src\Core\VisualAttributes.h"><Filter>Core</Filter></ClInclude>
     <ClInclude Include="src\Core\MapTrailVisuals.h"><Filter>Core</Filter></ClInclude>
+    <ClInclude Include="src\Core\PathingState.h"><Filter>Core</Filter></ClInclude>
+    <ClInclude Include="src\TaquitoAPI.h" />
     <ClInclude Include="src\UI\CategoryMenu.h"><Filter>UI</Filter></ClInclude>
     <ClInclude Include="src\UI\QuickMenu.h">
       <Filter>UI</Filter>
