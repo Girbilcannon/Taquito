@@ -5,6 +5,7 @@
 #include "imgui/imgui.h"
 #include "Core/AppRuntime.h"
 #include "Core/PathingState.h"
+#include "Core/PieUIBridge.h"
 #include "TaquitoAPI.h"
 #include "UI/QuickMenu.h"
 #include "UI/MarkerInteractions.h"
@@ -34,6 +35,9 @@ void OnLoad(AddonAPI_t* value) {
         reinterpret_cast<void* (*)(std::size_t, void*)>(api->ImguiMalloc),
         reinterpret_cast<void (*)(void*, void*)>(api->ImguiFree));
     AppRuntime::Initialize(api, module);
+    PieUIBridge::Initialize(api->Events_Raise);
+    api->Events_Subscribe(PieUIBridge::ReadyEvent,PieUIBridge::OnReady);
+    PieUIBridge::Probe();
     QuickMenu::Initialize();
     api->Events_Subscribe(EV_TAQUITO_PATHING_REQUEST,OnPathingRequest);
     api->Textures_GetOrCreateFromResource(IconID, IconResource, module);
@@ -51,6 +55,8 @@ void OnUnload() {
     api->InputBinds_Deregister(InteractBindID);
     api->Events_Unsubscribe(EV_MUMBLE_IDENTITY_UPDATED, OnMumbleIdentityUpdated);
     api->GUI_Deregister(OnRender);
+    api->Events_Unsubscribe(PieUIBridge::ReadyEvent,PieUIBridge::OnReady);
+    PieUIBridge::Shutdown();
     api->Events_Unsubscribe(EV_TAQUITO_PATHING_REQUEST,OnPathingRequest);
     PathingState::Shutdown();
     QuickMenu::Shutdown();
@@ -70,7 +76,7 @@ extern "C" __declspec(dllexport) AddonDefinition_t* GetAddonDef() {
     definition.Version.Major = 1;
     definition.Version.Minor = 0;
     definition.Version.Build = 1;
-    definition.Version.Revision = 1;
+    definition.Version.Revision = 8;
     definition.Author = "Girbilcannon.8259";
     definition.Description = "Lightweight TacO marker and trail pack viewer.";
     definition.Load = OnLoad;

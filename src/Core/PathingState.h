@@ -16,7 +16,6 @@ struct Diagnostics {
     uint64_t revision=0,events=0,requests=0;
     size_t packs=0;
     size_t loadedPacks=0;
-    bool minimap=false;
 };
 Diagnostics GetDiagnostics();
 std::string GetSnapshot();

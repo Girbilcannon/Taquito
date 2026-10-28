@@ -1,5 +1,6 @@
 #include "MarkerPack.h"
 #include "MarkerActions.h"
+#include "AttributeRuntime.h"
 #define MINIZ_NO_ZLIB_COMPATIBLE_NAMES
 #define MINIZ_HEADER_FILE_ONLY
 #include "../third_party/miniz.c"
@@ -199,6 +200,7 @@ void Categories(Pack& pack, Node* parent, Category* root, const std::string& pre
             if(Eq(a->name(),"copy")) current->copyText=a->value();
             if(Eq(a->name(),"copy-message")) current->copyMessage=a->value();
         }
+        current->visible = B(n,"defaultToggle",current->visible);
         current->hidden = B(n,"isHidden",current->hidden);
         current->separator = B(n,"isSeparator",current->separator);
         Categories(pack, n, current, key);
@@ -208,10 +210,11 @@ void Categories(Pack& pack, Node* parent, Category* root, const std::string& pre
 void Entries(Pack& pack, mz_zip_archive& zip, const ZipIndex& index, Node* root, const std::string& xmlName,
              std::unordered_map<std::string, Category*>& categoryFallbacks,
              std::unordered_set<std::string>& seenGuids) {
-    auto uniqueGuid=[&](uint32_t map, const std::string& guid) {
+    auto uniqueGuid=[&](uint32_t map, const std::string& guid, int variant) {
         if (guid.empty()) return true; // TacO generates identities when XML omits GUID.
         // Identity is scoped to a map; keep the first instance of an ID.
-        auto key=std::to_string(map)+":"+guid;
+        auto identity=AttributeRuntime::CanonicalGuid(guid);if(!identity.empty())++pack.guidDefinitions[identity];else identity=guid;
+        auto key=std::to_string(map)+":"+identity+":"+std::to_string(variant);
         if (seenGuids.insert(key).second) return true;
         pack.diagnostics.push_back("Duplicate GUID on map " + std::to_string(map) + ": " + guid);
         return false;
@@ -240,8 +243,13 @@ void Entries(Pack& pack, mz_zip_archive& zip, const ZipIndex& index, Node* root,
             if (isMarker) {
                 Marker p; p.category = cat; p.style = cat ? cat->style : Style{}; Apply(p.style, n);
                 p.map = U(n, "MapID"); p.position = {F(n,"xpos",0), F(n,"ypos",0), F(n,"zpos",0)}; p.guid = A(n,"GUID");
+                p.stateKey=AttributeRuntime::CanonicalGuid(p.guid);
                 p.asset = Resolve(index, xmlName, p.style.icon);
-                if (p.map && uniqueGuid(p.map,p.guid)) pack.markers.push_back(std::move(p));
+                if(p.map) {
+                    const bool unique=uniqueGuid(p.map,p.guid,p.style.behavior>0 && p.style.invertBehavior ? 1 : 0);
+                    // Native duplicate node IDs must reach graph validation, never silently pick a node.
+                    if(unique || p.style.checkpoint || p.style.cpFinish)pack.markers.push_back(std::move(p));
+                }
             } else if (isTrail) {
                 Trail t; t.category = cat; t.style = cat ? cat->style : Style{}; Apply(t.style, n); t.guid = A(n,"GUID");
                 t.asset = Resolve(index, xmlName, A(n,"trailData"));
@@ -256,12 +264,13 @@ void Entries(Pack& pack, mz_zip_archive& zip, const ZipIndex& index, Node* root,
                 t.strips.emplace_back();
                 for (size_t off = 8; off < bytes.size(); off += 12) {
                     Vec3 point; std::memcpy(&point, bytes.data()+off, 12);
-                    if (!std::isfinite(point.x) || !std::isfinite(point.y) || !std::isfinite(point.z)) continue;
+                    if (!std::isfinite(point.x) || !std::isfinite(point.y) || !std::isfinite(point.z)) { if (!t.strips.back().empty()) t.strips.emplace_back(); continue; }
                     if (point.x == 0 && point.y == 0 && point.z == 0) { if (!t.strips.back().empty()) t.strips.emplace_back(); }
                     else t.strips.back().push_back(point);
                 }
                 if (!t.strips.back().size()) t.strips.pop_back();
-                if (!t.strips.empty() && uniqueGuid(t.map,t.guid)) pack.trails.push_back(std::move(t));
+                const bool unique=uniqueGuid(t.map,t.guid,0);
+                if (!t.strips.empty() && (unique || t.style.cpFinish)) pack.trails.push_back(std::move(t));
             }
         }
     }

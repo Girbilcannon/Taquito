@@ -1,6 +1,8 @@
 #include "OverlayRenderer.h"
 #include "MapTrailRibbon.h"
 #include "../Core/VisualAttributes.h"
+#include "../Core/AttributeRuntime.h"
+#include "../Core/CheckpointRuntime.h"
 #include "../Core/MapTrailVisuals.h"
 #include "../imgui/imgui.h"
 #include <wincodec.h>
@@ -99,10 +101,9 @@ void GroundRibbon(ImDrawList* draw, const Projection& proj, Vec3 avatar, Vec3 a,
         const Vec3 nearest=Lerp(a,b,t), rel=Sub(nearest,avatar);
         if (std::sqrt(Dot(rel,rel)) >= style.fadeFar*.0254f) return;
     }
-    Vec3 horizontal{delta.x,0,delta.z};
-    Vec3 ort=Normal(Cross(horizontal,{0,1,0}));
-    if (Dot(ort,ort)<.5f) return;
-    ort={ort.x*width*.5f,0,ort.z*width*.5f};
+    Vec3 ort=AttributeRuntime::RibbonSide(delta,style.isWall);
+    ort={ort.x*width*.5f,ort.y*width*.5f,ort.z*width*.5f};
+    bubbleEnabled=bubbleEnabled && style.canFade;
     auto opacity=[&](Vec3 point) {
         const Vec3 rel=Sub(point,avatar);
         return Alpha(style,std::sqrt(Dot(rel,rel))) *
@@ -316,8 +317,8 @@ void Renderer::Draw(const std::vector<TacoPack::Pack>& packs, const Mumble::Data
     Image* stickyImage = nullptr;
     if (world && !m->Context.IsMapOpen && io.DisplaySize.x>0 && io.DisplaySize.y>0) {
         for (const auto& pack : packs) for (const auto& p : pack.markers) {
-            if (p.map!=map || !p.style.inWorld || !TacoPack::IsVisible(p.category) || p.asset.empty() ||
-                std::clamp(p.style.alpha,0.0f,1.0f)<=.01f || (p.style.tint&255u)==0) continue;
+            if (p.map!=map || !p.style.inWorld || !AttributeRuntime::Visible(p) || p.asset.empty() ||
+                std::clamp(p.style.alpha,0.0f,1.0f)<=.01f || (CheckpointRuntime::Tint(p,p.style.tint)&255u)==0) continue;
             const Vec3 delta=Sub(p.position,avatar);
             const float distance=std::sqrt(Dot(delta,delta));
             if (distance<stickyNearestMeters && TacoPack::StickyWithinDistance(p.style,distance)) {
@@ -333,13 +334,13 @@ void Renderer::Draw(const std::vector<TacoPack::Pack>& packs, const Mumble::Data
         if((blishMapTrails || mapSampler_) && mp.valid && (m->Context.IsMapOpen ? big : mini)) {
             if(!blishMapTrails) draw->AddCallback(BeginMapSampler,this);
             for(const auto& t:pack.trails) {
-                if(t.map!=map || !TacoPack::IsVisible(t.category) ||
+                if(t.map!=map || !AttributeRuntime::Visible(t) ||
                     !(m->Context.IsMapOpen ? t.style.bigMap : t.style.miniMap)) continue;
                 Image* img=Texture(pack,t.texture);
                 // Loading/missing textures never become opaque colored bands.
                 if(!img) continue;
                 const ImU32 lineColor=blishMapTrails ?
-                    Tint(MapTrailVisuals::LineColor(img->mapColor,t.style.tint),t.style.alpha) : 0;
+                    Tint(MapTrailVisuals::LineColor(img->mapColor,CheckpointRuntime::Tint(t,t.style.tint)),t.style.alpha) : 0;
                 const float lineWidth=blishMapTrails ? MapTrailVisuals::LineWidth(ui,mapTrailMultiplier) : 0;
                 draw->PushClipRect(mp.min,mp.max,true);
                 for(const auto& strip:t.strips) {
@@ -355,7 +356,7 @@ void Renderer::Draw(const std::vector<TacoPack::Pack>& packs, const Mumble::Data
                                 const float width=VisualAttributes::MapTrailWidth(mapDisplaySize(t.style,mapTrailMultiplier),t.style.trailScale);
                                 const double tile=VisualAttributes::TileLength(width,img ? img->width : 0,img ? img->height : 0,1.0);
                                 MapTrailRibbon::Draw(draw,a,b,width,
-                                    Tint(t.style,t.style.alpha),reinterpret_cast<ImTextureID>(img->view.Get()),img->width,img->height,
+                                    Tint(CheckpointRuntime::Tint(t,t.style.tint),t.style.alpha),reinterpret_cast<ImTextureID>(img->view.Get()),img->width,img->height,
                                     phase+std::hypot(a.x-original.x,a.y-original.y)
                                         + VisualAttributes::AnimationOffset(ImGui::GetTime(),t.style.animSpeed,tile));
                             }
@@ -368,12 +369,13 @@ void Renderer::Draw(const std::vector<TacoPack::Pack>& packs, const Mumble::Data
             if(!blishMapTrails) draw->AddCallback(EndMapSampler,this);
         }
         for(const auto& t:pack.trails) {
-            if(t.map!=map || !TacoPack::IsVisible(t.category)) continue;
+            if(t.map!=map || !AttributeRuntime::Visible(t)) continue;
             bool inWorld=world && proj.valid && t.style.inWorld && !m->Context.IsMapOpen;
             if(!inWorld) continue;
             Image* img=Texture(pack,t.texture); auto* texture=img ? img->view.Get():nullptr;
             // The map clip applies only to map geometry. Applying it before
             // the world pass clipped every visible world trail to the compass.
+            auto trailStyle=t.style;trailStyle.tint=CheckpointRuntime::Tint(t,t.style.tint);
             if(inWorld) for(const auto& strip:t.strips) {
                 double phase=0;
                 for(size_t i=1;i<strip.size();++i) {
@@ -395,7 +397,7 @@ void Renderer::Draw(const std::vector<TacoPack::Pack>& packs, const Mumble::Data
                         if(!(width>0)) continue;
                         const double tile=VisualAttributes::WorldTrailBaseWidth;
                         GroundRibbon(draw,proj,avatar,start,end,width,
-                            t.style,texture,img ? img->width : 0,img ? img->height : 0,
+                            trailStyle,texture,img ? img->width : 0,img ? img->height : 0,
                             segmentPhase+std::sqrt(static_cast<double>(Dot(Sub(start,strip[i-1]),Sub(start,strip[i-1]))))
                                 + VisualAttributes::AnimationOffset(ImGui::GetTime(),t.style.animSpeed,tile),
                             worldTileBudget,io.DisplaySize,playerBubble,bubbleRadius,bubbleFeather);
@@ -405,22 +407,23 @@ void Renderer::Draw(const std::vector<TacoPack::Pack>& packs, const Mumble::Data
 
         }
         for(const auto& p:pack.markers) {
-            if(p.map!=map || !TacoPack::IsVisible(p.category)) continue;
+            if(p.map!=map || !AttributeRuntime::Visible(p)) continue;
             bool inWorld=world && proj.valid && p.style.inWorld && !m->Context.IsMapOpen &&
                 !(&p==stickyMarker && p.style.stickyHideOriginal);
             bool onMap=mp.valid && (m->Context.IsMapOpen ? big && p.style.bigMap : mini && p.style.miniMap);
             if(!inWorld && !onMap) continue;
+            const auto markerTint=CheckpointRuntime::Tint(p,p.style.tint);
             Image* image=Texture(pack,p.asset);
             auto drawMarker=[&](ImVec2 pos,float half,float alpha) {
                 if(alpha<=.01f) return;
-                if(image) draw->AddImage(reinterpret_cast<ImTextureID>(image->view.Get()),{pos.x-half,pos.y-half},{pos.x+half,pos.y+half},{0,0},{1,1},Tint(p.style,alpha));
-                else draw->AddCircleFilled(pos,std::max(half,3.0f),Tint(p.style,alpha));
+                if(image) draw->AddImage(reinterpret_cast<ImTextureID>(image->view.Get()),{pos.x-half,pos.y-half},{pos.x+half,pos.y+half},{0,0},{1,1},Tint(markerTint,alpha));
+                else draw->AddCircleFilled(pos,std::max(half,3.0f),Tint(markerTint,alpha));
             };
             if(inWorld) {
-                Vec3 point=p.position; point.y+=p.style.height;
+                Vec3 point=p.position; point.y+=p.style.height+AttributeRuntime::BounceOffset(p);
                 ImVec2 screen; float depth=proj.Depth(point);
                 const float opacity=Alpha(p.style,std::sqrt(Dot(Sub(point,avatar),Sub(point,avatar)))) *
-                    Bubble(point,avatar,playerBubble,bubbleRadius,bubbleFeather);
+                    Bubble(point,avatar,playerBubble && p.style.canFade,bubbleRadius,bubbleFeather);
                 if (image && opacity>.01f && p.style.hasRotation && depth>.05f) {
                     // Fixed orientation in world space; screenSticky uses its own pixel placement.
                     float half=VisualAttributes::WorldMarkerHalfSize(proj.focal,depth,p.style,worldIconSize)*depth/proj.focal;
@@ -432,7 +435,7 @@ void Renderer::Draw(const std::vector<TacoPack::Pack>& packs, const Mumble::Data
                         valid &= proj.Screen({point.x+r.x,point.y+r.y,point.z+r.z},corners[i]);
                     }
                     if (valid) draw->AddImageQuad(reinterpret_cast<ImTextureID>(image->view.Get()),
-                        corners[0],corners[1],corners[2],corners[3],{0,0},{1,0},{1,1},{0,1},Tint(p.style,opacity));
+                        corners[0],corners[1],corners[2],corners[3],{0,0},{1,0},{1,1},{0,1},Tint(markerTint,opacity));
                 } else if(proj.Screen(point,screen) && screen.x>=-200 && screen.y>=-200 && screen.x<=io.DisplaySize.x+200 && screen.y<=io.DisplaySize.y+200)
                     drawMarker(screen,VisualAttributes::WorldMarkerHalfSize(proj.focal,depth,p.style,worldIconSize),opacity);
             }
@@ -458,6 +461,8 @@ void Renderer::Draw(const std::vector<TacoPack::Pack>& packs, const Mumble::Data
             const char* heading=title ? title->c_str() :
                 (hoveredMarker->category ? hoveredMarker->category->name.c_str() : "Marker");
             ImGui::TextUnformatted(heading);
+            const auto delta=Sub(hoveredMarker->position,avatar);
+            ImGui::Text("%.1f m",std::sqrt(Dot(delta,delta)));
             if (detail && !detail->empty()) { ImGui::Separator(); ImGui::TextWrapped("%s",detail->c_str()); }
             ImGui::EndTooltip();
         }
@@ -480,7 +485,7 @@ void Renderer::Draw(const std::vector<TacoPack::Pack>& packs, const Mumble::Data
                 margin+height*.5f,io.DisplaySize.y-margin-height*.5f);
             draw->AddImage(reinterpret_cast<ImTextureID>(image->view.Get()),
                 {x-width*.5f,y-height*.5f},{x+width*.5f,y+height*.5f},
-                {0,0},{1,1},Tint(style,style.alpha));
+                {0,0},{1,1},Tint(CheckpointRuntime::Tint(*stickyMarker,style.tint),style.alpha));
         }
     }
 }

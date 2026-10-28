@@ -5,6 +5,8 @@
 #include "../Core/AppSettings.h"
 #include "../Core/PathingState.h"
 #include "../Core/OnlinePacks.h"
+#include "../Core/AttributeRuntime.h"
+#include "../Core/CheckpointRuntime.h"
 #include "../TaquitoAPI.h"
 #include "../imgui/imgui.h"
 #include <Windows.h>
@@ -37,6 +39,7 @@ void SettingsWindow::Render(const std::vector<TacoPack::Pack>& packs, const Rend
         changed |= ImGui::Checkbox("In-world markers and trails",&settings.world);
         changed |= ImGui::Checkbox("Minimap markers and trails",&settings.mini);
         changed |= ImGui::Checkbox("Full map markers and trails",&settings.big);
+        ImGui::TextWrapped("These display switches affect Taquito only. Pie UI controls its own map visibility.");
         ImGui::Spacing();
         int trailStyle=static_cast<int>(settings.mapTrailStyle);
         if(ImGui::Combo("Map trail style",&trailStyle,"Taco\0Blish HUD\0\0")) {
@@ -74,6 +77,12 @@ void SettingsWindow::Render(const std::vector<TacoPack::Pack>& packs, const Rend
             settings.clipboardMode=static_cast<AppSettings::ClipboardMode>(clipboard);changed=true;
         }
         if(ImGui::IsItemHovered()) ImGui::SetTooltip("Nearby marker copy: click Copy text or use the Taquito marker interaction keybind (default Alt+F). Change the keybind in Nexus settings.");
+        changed |= ImGui::Checkbox("Enable Auto-Trigger of Pie UI Maps",&settings.autoTriggerPieUIMaps);
+        if(ImGui::IsItemHovered())ImGui::SetTooltip("Off by default. When enabled, eligible autoTrigger markers can open map links through Pie UI. Automatic copying still follows Marker clipboard settings. When off, use Open in Map manually.");
+        if(ImGui::Button("Reset Info and Copy positions")) {settings.infoHud={};settings.copyHud={};changed=true;}
+        if(ImGui::IsItemHovered())ImGui::SetTooltip("Returns Info and Copy HUDs to their default screen positions.");
+        if(ImGui::Button("Reset activated marker state"))AttributeRuntime::ResetBehavior();
+        if(ImGui::IsItemHovered())ImGui::SetTooltip("Clears Taquito's behavior timers and session activations, including permanent markers. Category checkboxes are preserved.");
         ImGui::Spacing();
     }
     if(ImGui::CollapsingHeader("Menu and Appearance")) {
@@ -108,10 +117,15 @@ void SettingsWindow::Render(const std::vector<TacoPack::Pack>& packs, const Rend
         resetDiagnostics=false;
     }
     if(ImGui::CollapsingHeader("Diagnostics##TaquitoDiagnostics")) {
+        const auto checkpoints=CheckpointRuntime::GetDiagnostics();
+        ImGui::Text("Checkpoints: %zu nodes, %zu runs (%zu blocked, %zu finished)",checkpoints.nodes,checkpoints.runs,checkpoints.blockedRuns,checkpoints.completedRuns);
+        ImGui::Text("Checkpoint contacts: %llu; resets: %llu",static_cast<unsigned long long>(checkpoints.contacts),static_cast<unsigned long long>(checkpoints.resets));
+        const auto behaviorStatus=AttributeRuntime::Status();
+        ImGui::TextWrapped("%s",behaviorStatus.c_str());
         const auto bridge=PathingState::GetDiagnostics();
         ImGui::TextUnformatted("Pie UI sharing");
         ImGui::Text("Sharing: %s; packs: %s",bridge.active ? "enabled" : "disabled",bridge.ready ? "ready" : "loading");
-        ImGui::Text("Packs in message: %zu (%zu loaded); minimap requested: %s",bridge.packs,bridge.loadedPacks,bridge.minimap ? "yes" : "no");
+        ImGui::Text("Packs in message: %zu (%zu loaded)",bridge.packs,bridge.loadedPacks);
         ImGui::Text("State revision: %llu",static_cast<unsigned long long>(bridge.revision));
         ImGui::Text("Messages sent: %llu; requests received: %llu",static_cast<unsigned long long>(bridge.events),static_cast<unsigned long long>(bridge.requests));
         ImGui::TextWrapped("Pack folder: %s",AppRuntime::GetPacksDirectory().string().c_str());

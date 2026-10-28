@@ -35,7 +35,10 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="src\Entry.cpp" />
+    <ClCompile Include="src\Core\PieUIBridge.cpp" />
     <ClCompile Include="src\Core\PathingState.cpp" />
+    <ClCompile Include="src\Core\AttributeRuntime.cpp" />
+    <ClCompile Include="src\Core\CheckpointRuntime.cpp" />
     <ClCompile Include="src\UI\MarkerInteractions.cpp" />
     <ClCompile Include="src\UI\CategoryMenu.cpp" />
     <ClCompile Include="src\Core\AppRuntime.cpp" /><ClCompile Include="src\Core\AppSettings.cpp" /><ClCompile Include="src\Core\MarkerPack.cpp" /><ClCompile Include="src\Core\OnlinePacks.cpp" /><ClCompile Include="src\Core\InstalledPacks.cpp" />
@@ -48,9 +51,15 @@
     <ClInclude Include="src\Core\AppRuntime.h" /><ClInclude Include="src\Core\AppSettings.h" /><ClInclude Include="src\Core\MarkerPack.h" /><ClInclude Include="src\Core\OnlinePacks.h" /><ClInclude Include="src\Core\InstalledPacks.h" />
     <ClInclude Include="src\UI\MarkerInteractions.h" />
     <ClInclude Include="src\Core\MarkerActions.h" />
+    <ClInclude Include="src\Core\AttributeRuntime.h" />
+    <ClInclude Include="src\Core\CheckpointRuntime.h" />
+    <ClInclude Include="src\Core\CheckpointAttributes.h" />
+    <ClInclude Include="src\Core\AtomicFile.h" />
+    <ClInclude Include="src\UI\HudPlacement.h" />
     <ClInclude Include="src\UI\MapTrailRibbon.h" />
     <ClInclude Include="src\Core\VisualAttributes.h" /><ClInclude Include="src\UI\CategoryMenu.h" />
     <ClInclude Include="src\Core\MapTrailVisuals.h" />
+    <ClInclude Include="src\Core\PieUIBridge.h" />
     <ClInclude Include="src\Core\PathingState.h" />
     <ClInclude Include="src\TaquitoAPI.h" />
     <ClInclude Include="src\UI\QuickMenu.h" /><ClInclude Include="src\UI\OverlayRenderer.h" /><ClInclude Include="src\UI\SettingsWindow.h" /><ClInclude Include="src\UI\PackBrowserWindow.h" />

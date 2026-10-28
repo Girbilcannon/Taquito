@@ -9,6 +9,11 @@
 #include "../Core/MarkerPack.h"
 #include "../Core/OnlinePacks.h"
 #include "../Core/PathingState.h"
+#include "../Core/AttributeRuntime.h"
+#include "../Core/CheckpointRuntime.h"
+#include "../third_party/jsonxx.h"
+#include <chrono>
+#include <algorithm>
 #include "../imgui/imgui.h"
 #include <atomic>
 #include <mutex>
@@ -54,8 +59,11 @@ void ReceivePacks() {
     if (!ready) return;
     if (loader.joinable()) loader.join();
     MarkerInteractions::Reset();
+    AttributeRuntime::ResetFocus();
+    CheckpointRuntime::PrepareReload();
     packs = std::move(*ready);
     AppSettings::Load(AppRuntime::GetAddonDirectory(), packs);
+    CheckpointRuntime::Load(packs);
     packCatalog=InstalledPacks::Load(AppRuntime::GetAddonDirectory()/"installed-packs.json");
     packsReady=true;
     PublishPathingState();
@@ -112,22 +120,46 @@ void QuickMenu::Initialize() {
     AppSettings::Load(AppRuntime::GetAddonDirectory(),packs);
     auto* api=AppRuntime::GetApi();
     PathingState::Initialize(api ? api->Events_Raise : nullptr);
+    AttributeRuntime::Initialize(AppRuntime::GetAddonDirectory());
+    CheckpointRuntime::Clear();
     renderer.Initialize(api); Refresh();
 }
-void QuickMenu::Shutdown() { OnlinePacks::Stop(); if (loader.joinable()) loader.join(); Save(); MarkerInteractions::Reset(); renderer.Shutdown(); packs.clear(); showMenu = false; PackBrowserWindow::Close(); SettingsWindow::Close(); { std::lock_guard lock(loadMutex); loadedPacks.reset(); } }
+void QuickMenu::Shutdown() { CheckpointRuntime::Clear(); OnlinePacks::Stop(); if (loader.joinable()) loader.join(); Save(); MarkerInteractions::Reset(); renderer.Shutdown(); packs.clear(); showMenu = false; PackBrowserWindow::Close(); SettingsWindow::Close(); { std::lock_guard lock(loadMutex); loadedPacks.reset(); } }
 void QuickMenu::RequestToggle() { toggleRequested.store(true, std::memory_order_release); }
 void QuickMenu::Render() {
     if(OnlinePacks::ConsumeReloadRequest()) Refresh();
     ReceivePacks();
     auto& settings = AppSettings::Get();
     auto* playableMumble=AppRuntime::GetPlayableMumble();
+    static std::wstring lastIdentity;static std::string character;
+    if(playableMumble) {
+        const auto* raw=playableMumble->Identity;size_t length=0;while(length<256 && raw[length])++length;
+        std::wstring identity(raw,length);
+        if(identity!=lastIdentity) {
+            lastIdentity=identity;character.clear();
+            const int bytes=WideCharToMultiByte(CP_UTF8,0,identity.data(),static_cast<int>(identity.size()),nullptr,0,nullptr,nullptr);
+            std::string json(static_cast<size_t>(std::max(0,bytes)),0);
+            if(bytes>0)WideCharToMultiByte(CP_UTF8,0,identity.data(),static_cast<int>(identity.size()),json.data(),bytes,nullptr,nullptr);
+            jsonxx::Object parsed;if(parsed.parse(json)&&parsed.has<jsonxx::String>("name"))character=parsed.get<jsonxx::String>("name");
+        }
+    }
+    const auto now=std::chrono::duration<double>(std::chrono::system_clock::now().time_since_epoch()).count();
+    AttributeRuntime::Tick(playableMumble ? playableMumble->Context.MapID : 0,
+        playableMumble ? playableMumble->Context.ShardID : 0,playableMumble ? playableMumble->Context.InstanceID : 0,
+        playableMumble ? character : std::string{},playableMumble ? static_cast<int>(playableMumble->Context.MountIndex) : -1,
+        now,ImGui::GetTime());
+    const TacoPack::Vec3 player=playableMumble ? TacoPack::Vec3{playableMumble->AvatarPosition.X,playableMumble->AvatarPosition.Y,playableMumble->AvatarPosition.Z} : TacoPack::Vec3{};
+    AttributeRuntime::UpdateFocus(packs,player,playableMumble && settings.world && !playableMumble->Context.IsMapOpen);
+    MarkerInteractions::Render(packs,playableMumble,settings.world,Save,CategoryChanged);
+    const bool checkpointContact=playableMumble && settings.world && playableMumble->Context.IsGameFocused &&
+        !playableMumble->Context.IsMapOpen && !playableMumble->Context.IsTextboxFocused && !ImGui::GetIO().WantTextInput;
+    CheckpointRuntime::UpdateContact(playableMumble ? playableMumble->Context.MapID : 0,player,checkpointContact);
     renderer.Draw(packs, playableMumble, AppRuntime::GetMumbleIdentity(),
                   settings.world, settings.mini, settings.big, settings.miniIconSize, settings.bigIconSize,
                   settings.miniTrailSize, settings.bigTrailSize,
                   settings.worldIconSize, settings.worldTrailSize,
                   settings.playerBubble, settings.bubbleRadius, settings.bubbleFeather,
                   settings.mapTrailStyle==AppSettings::MapTrailStyle::BlishHUD);
-    MarkerInteractions::Render(packs,playableMumble,settings.world);
     DrawMenu();
     PackBrowserWindow::Render();
     SettingsWindow::Render(packs,renderer,loading.load(),Refresh,Save);

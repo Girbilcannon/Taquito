@@ -1,5 +1,8 @@
 #include "AppSettings.h"
 #include "InstalledPacks.h"
+#include "AtomicFile.h"
+#include <sstream>
+#include <cmath>
 #include <fstream>
 #include <iomanip>
 #include <algorithm>
@@ -7,6 +10,8 @@
 namespace { AppSettings::State state; }
 AppSettings::State& AppSettings::Get() { return state; }
 void AppSettings::Load(const std::filesystem::path& directory, std::vector<TacoPack::Pack>& packs) {
+    // Missing option in older settings is an explicit opt-out on upgrade/reload.
+    state.autoTriggerPieUIMaps=false;
     std::ifstream input(directory / "settings.txt");
     // Filename aliases keep category toggles when a tracked pack changes its catalog filename.
     const auto installed=InstalledPacks::Load(directory / "installed-packs.json");
@@ -16,7 +21,12 @@ void AppSettings::Load(const std::filesystem::path& directory, std::vector<TacoP
     bool hasLegacyMini=false, hasLegacyBig=false;
     bool hasMiniIcon=false, hasMiniTrail=false, hasBigIcon=false, hasBigTrail=false;
     while (input >> kind) {
-        if (kind == "category") {
+        if(kind=="infoHud" || kind=="copyHud") {
+            bool saved=false;float x=0,y=0;if(!(input>>saved>>x>>y))break;
+            if(std::isfinite(x)&&std::isfinite(y)) {
+                auto& hud=kind=="infoHud" ? state.infoHud : state.copyHud;hud={saved,x,y};
+            }
+        } else if (kind == "category") {
             std::string file, key; bool visible;
             if (!(input >> std::quoted(file) >> key >> visible)) break;
             for (auto& pack : packs) {
@@ -64,6 +74,7 @@ void AppSettings::Load(const std::filesystem::path& directory, std::vector<TacoP
             else if (kind == "big") state.big = value;
             else if (kind == "playerBubble") state.playerBubble = value;
             else if (kind == "showMarkerInfo") state.showMarkerInfo = value;
+            else if (kind == "autoTriggerPieUIMaps") state.autoTriggerPieUIMaps = value;
         }
     }
     // Old combined scales initialize both controls; explicit new values win in any order.
@@ -84,11 +95,13 @@ void AppSettings::Load(const std::filesystem::path& directory, std::vector<TacoP
 void AppSettings::Save(const std::filesystem::path& directory, const std::vector<TacoPack::Pack>& packs) {
     std::error_code ec;
     std::filesystem::create_directories(directory, ec);
-    std::ofstream output(directory / "settings.txt", std::ios::trunc);
-    if (!output) return;
+    std::ostringstream output;
+    output << "infoHud " << state.infoHud.saved << ' ' << state.infoHud.x << ' ' << state.infoHud.y << '\n';
+    output << "copyHud " << state.copyHud.saved << ' ' << state.copyHud.x << ' ' << state.copyHud.y << '\n';
     output << "nestingStyle " << static_cast<int>(state.nestingStyle) << '\n';
     output << "mapTrailStyle " << static_cast<int>(state.mapTrailStyle) << '\n';
     output << "clipboardMode " << static_cast<int>(state.clipboardMode) << "\nshowMarkerInfo " << state.showMarkerInfo << '\n';
+    output << "autoTriggerPieUIMaps " << state.autoTriggerPieUIMaps << '\n';
     output << "world " << state.world << "\nmini " << state.mini << "\nbig " << state.big << '\n';
     output << "miniIconSize " << state.miniIconSize << "\nminiTrailSize " << state.miniTrailSize << '\n';
     output << "bigIconSize " << state.bigIconSize << "\nbigTrailSize " << state.bigTrailSize << '\n';
@@ -98,4 +111,5 @@ void AppSettings::Save(const std::filesystem::path& directory, const std::vector
     output << "scaleBaselineV1 1\n";
     for (const auto& pack : packs) for (const auto& [key, category] : pack.categories)
         output << "category " << std::quoted(pack.path.filename().string()) << ' ' << key << ' ' << category->visible << '\n';
+    AtomicFile::Write(directory / "settings.txt",output.str());
 }

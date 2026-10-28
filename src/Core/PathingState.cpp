@@ -2,6 +2,7 @@
 #include "../TaquitoAPI.h"
 #include "../third_party/jsonxx.h"
 #include <algorithm>
+#include <cmath>
 #include <mutex>
 
 namespace {
@@ -12,7 +13,6 @@ uint64_t revision=0;
 uint64_t raisedEvents=0,receivedRequests=0;
 size_t publishedPacks=0;
 size_t readablePacks=0;
-bool snapshotMinimap=false;
 bool snapshotReady=false;
 bool active=false;
 std::string Utf8(const std::filesystem::path& path) {
@@ -44,21 +44,30 @@ void PathingState::Initialize(RaiseEvent raise) {
     std::lock_guard lock(mutex);
     raiseEvent=raise;lastBody.clear();lastJson.clear();revision=0;active=false;
     raisedEvents=receivedRequests=0;publishedPacks=0;snapshotReady=false;
-    readablePacks=0;snapshotMinimap=false;
+    readablePacks=0;
 }
 void PathingState::Update(const std::vector<TacoPack::Pack>& packs,const AppSettings::State& settings,
                           const std::filesystem::path& directory,const std::vector<InstalledPacks::Record>& catalog,bool ready) {
-    jsonxx::Object root,display;
+    jsonxx::Object root;
     root.import("schema",jsonxx::Value(1));
     root.import("addon",jsonxx::Value("Taquito"));
     root.import("version",jsonxx::Value(TAQUITO_VERSION));
     root.import("active",jsonxx::Value(true));
     root.import("ready",jsonxx::Value(ready));
     root.import("packsDir",jsonxx::Value(Absolute(directory)));
-    display.import("inWorld",jsonxx::Value(settings.world));
-    display.import("minimap",jsonxx::Value(settings.mini));
-    display.import("worldMap",jsonxx::Value(settings.big));
-    root.import("display",jsonxx::Value(display));
+    // Native rendering switches stay local; consumers control their own map widgets.
+    // Optional schema-1 extension: dimensionless user multipliers, independent of visibility.
+    const auto multiplier=[](float value) {
+        return std::isfinite(value) ? std::clamp(value,0.25f,3.0f) : 1.0f;
+    };
+    jsonxx::Object scale,minimapScale,worldMapScale;
+    minimapScale.import("icons",jsonxx::Value(multiplier(settings.miniIconSize)));
+    minimapScale.import("trails",jsonxx::Value(multiplier(settings.miniTrailSize)));
+    worldMapScale.import("icons",jsonxx::Value(multiplier(settings.bigIconSize)));
+    worldMapScale.import("trails",jsonxx::Value(multiplier(settings.bigTrailSize)));
+    scale.import("minimap",jsonxx::Value(minimapScale));
+    scale.import("worldMap",jsonxx::Value(worldMapScale));
+    root.import("scale",jsonxx::Value(scale));
     std::vector<const TacoPack::Pack*> ordered;
     if(ready) for(const auto& pack:packs) ordered.push_back(&pack);
     std::sort(ordered.begin(),ordered.end(),[](const auto* a,const auto* b){return a->path < b->path;});
@@ -89,7 +98,6 @@ void PathingState::Update(const std::vector<TacoPack::Pack>& packs,const AppSett
         lastBody=body;active=true;++revision;lastJson=Encode(lastBody);
         snapshotReady=ready;publishedPacks=ordered.size();
         readablePacks=static_cast<size_t>(std::count_if(ordered.begin(),ordered.end(),[](const auto* pack){return pack->loaded;}));
-        snapshotMinimap=settings.mini;
         send=raiseEvent;payload=lastJson;++raisedEvents;
     }
     // No lock across Nexus dispatch: a consumer may request state reentrantly.
@@ -101,7 +109,7 @@ void PathingState::Reply() {
 void PathingState::Rebroadcast() { SendSnapshot(false); }
 PathingState::Diagnostics PathingState::GetDiagnostics() {
     std::lock_guard lock(mutex);
-    return {raiseEvent!=nullptr,active,snapshotReady,revision,raisedEvents,receivedRequests,publishedPacks,readablePacks,snapshotMinimap};
+    return {raiseEvent!=nullptr,active,snapshotReady,revision,raisedEvents,receivedRequests,publishedPacks,readablePacks};
 }
 std::string PathingState::GetSnapshot() {
     std::lock_guard lock(mutex);

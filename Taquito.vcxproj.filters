@@ -28,7 +28,10 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\Entry.cpp" />
+    <ClCompile Include="src\Core\PieUIBridge.cpp"><Filter>Core</Filter></ClCompile>
     <ClCompile Include="src\Core\PathingState.cpp"><Filter>Core</Filter></ClCompile>
+    <ClCompile Include="src\Core\AttributeRuntime.cpp"><Filter>Core</Filter></ClCompile>
+    <ClCompile Include="src\Core\CheckpointRuntime.cpp"><Filter>Core</Filter></ClCompile>
     <ClCompile Include="src\UI\MarkerInteractions.cpp"><Filter>UI</Filter></ClCompile>
     <ClCompile Include="src\UI\CategoryMenu.cpp"><Filter>UI</Filter></ClCompile>
     <ClCompile Include="src\Core\AppRuntime.cpp">
@@ -79,9 +82,15 @@
     <ClInclude Include="src\Core\InstalledPacks.h"><Filter>Core</Filter></ClInclude>
     <ClInclude Include="src\UI\MarkerInteractions.h"><Filter>UI</Filter></ClInclude>
     <ClInclude Include="src\Core\MarkerActions.h"><Filter>Core</Filter></ClInclude>
+    <ClInclude Include="src\Core\AttributeRuntime.h"><Filter>Core</Filter></ClInclude>
+    <ClInclude Include="src\Core\CheckpointRuntime.h"><Filter>Core</Filter></ClInclude>
+    <ClInclude Include="src\Core\CheckpointAttributes.h"><Filter>Core</Filter></ClInclude>
+    <ClInclude Include="src\Core\AtomicFile.h"><Filter>Core</Filter></ClInclude>
+    <ClInclude Include="src\UI\HudPlacement.h"><Filter>UI</Filter></ClInclude>
     <ClInclude Include="src\UI\MapTrailRibbon.h"><Filter>UI</Filter></ClInclude>
     <ClInclude Include="src\Core\VisualAttributes.h"><Filter>Core</Filter></ClInclude>
     <ClInclude Include="src\Core\MapTrailVisuals.h"><Filter>Core</Filter></ClInclude>
+    <ClInclude Include="src\Core\PieUIBridge.h"><Filter>Core</Filter></ClInclude>
     <ClInclude Include="src\Core\PathingState.h"><Filter>Core</Filter></ClInclude>
     <ClInclude Include="src\TaquitoAPI.h" />
     <ClInclude Include="src\UI\CategoryMenu.h"><Filter>UI</Filter></ClInclude>
