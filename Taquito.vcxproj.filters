@@ -29,6 +29,9 @@
   <ItemGroup>
     <ClCompile Include="src\Entry.cpp" />
     <ClCompile Include="src\Core\PieUIBridge.cpp"><Filter>Core</Filter></ClCompile>
+    <ClCompile Include="src\Core\Presets.cpp"><Filter>Core</Filter></ClCompile>
+    <ClCompile Include="src\UI\ShortcutSettings.cpp"><Filter>UI</Filter></ClCompile>
+    <ClCompile Include="src\UI\PresetsWindow.cpp"><Filter>UI</Filter></ClCompile>
     <ClCompile Include="src\Core\PathingState.cpp"><Filter>Core</Filter></ClCompile>
     <ClCompile Include="src\Core\AttributeRuntime.cpp"><Filter>Core</Filter></ClCompile>
     <ClCompile Include="src\Core\CheckpointRuntime.cpp"><Filter>Core</Filter></ClCompile>
@@ -91,6 +94,9 @@
     <ClInclude Include="src\Core\VisualAttributes.h"><Filter>Core</Filter></ClInclude>
     <ClInclude Include="src\Core\MapTrailVisuals.h"><Filter>Core</Filter></ClInclude>
     <ClInclude Include="src\Core\PieUIBridge.h"><Filter>Core</Filter></ClInclude>
+    <ClInclude Include="src\Core\Presets.h"><Filter>Core</Filter></ClInclude>
+    <ClInclude Include="src\UI\ShortcutSettings.h"><Filter>UI</Filter></ClInclude>
+    <ClInclude Include="src\UI\PresetsWindow.h"><Filter>UI</Filter></ClInclude>
     <ClInclude Include="src\Core\PathingState.h"><Filter>Core</Filter></ClInclude>
     <ClInclude Include="src\TaquitoAPI.h" />
     <ClInclude Include="src\UI\CategoryMenu.h"><Filter>UI</Filter></ClInclude>

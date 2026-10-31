@@ -12,6 +12,7 @@ AppSettings::State& AppSettings::Get() { return state; }
 void AppSettings::Load(const std::filesystem::path& directory, std::vector<TacoPack::Pack>& packs) {
     // Missing option in older settings is an explicit opt-out on upgrade/reload.
     state.autoTriggerPieUIMaps=false;
+    state.presetsEnabled=false;state.shortcuts={};
     std::ifstream input(directory / "settings.txt");
     // Filename aliases keep category toggles when a tracked pack changes its catalog filename.
     const auto installed=InstalledPacks::Load(directory / "installed-packs.json");
@@ -21,7 +22,10 @@ void AppSettings::Load(const std::filesystem::path& directory, std::vector<TacoP
     bool hasLegacyMini=false, hasLegacyBig=false;
     bool hasMiniIcon=false, hasMiniTrail=false, hasBigIcon=false, hasBigTrail=false;
     while (input >> kind) {
-        if(kind=="infoHud" || kind=="copyHud") {
+        if(kind=="shortcutRender"||kind=="shortcutNext"||kind=="shortcutPrevious") {
+            Shortcut key;if(!(input>>key.key>>key.ctrl>>key.alt>>key.shift))break;
+            if(key.key>=0&&key.key<256)state.shortcuts[kind=="shortcutRender"?0:kind=="shortcutNext"?1:2]=key;
+        } else if(kind=="infoHud" || kind=="copyHud") {
             bool saved=false;float x=0,y=0;if(!(input>>saved>>x>>y))break;
             if(std::isfinite(x)&&std::isfinite(y)) {
                 auto& hud=kind=="infoHud" ? state.infoHud : state.copyHud;hud={saved,x,y};
@@ -73,6 +77,7 @@ void AppSettings::Load(const std::filesystem::path& directory, std::vector<TacoP
             else if (kind == "mini") state.mini = value;
             else if (kind == "big") state.big = value;
             else if (kind == "playerBubble") state.playerBubble = value;
+            else if (kind == "presetsEnabled") state.presetsEnabled=value;
             else if (kind == "showMarkerInfo") state.showMarkerInfo = value;
             else if (kind == "autoTriggerPieUIMaps") state.autoTriggerPieUIMaps = value;
         }
@@ -96,6 +101,9 @@ void AppSettings::Save(const std::filesystem::path& directory, const std::vector
     std::error_code ec;
     std::filesystem::create_directories(directory, ec);
     std::ostringstream output;
+    output << "presetsEnabled " << state.presetsEnabled << '\n';
+    const char* shortcutNames[]={"shortcutRender","shortcutNext","shortcutPrevious"};
+    for(size_t i=0;i<state.shortcuts.size();++i){const auto&k=state.shortcuts[i];output<<shortcutNames[i]<<' '<<k.key<<' '<<k.ctrl<<' '<<k.alt<<' '<<k.shift<<'\n';}
     output << "infoHud " << state.infoHud.saved << ' ' << state.infoHud.x << ' ' << state.infoHud.y << '\n';
     output << "copyHud " << state.copyHud.saved << ' ' << state.copyHud.x << ' ' << state.copyHud.y << '\n';
     output << "nestingStyle " << static_cast<int>(state.nestingStyle) << '\n';

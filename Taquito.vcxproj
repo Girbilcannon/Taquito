@@ -36,6 +36,9 @@
   <ItemGroup>
     <ClCompile Include="src\Entry.cpp" />
     <ClCompile Include="src\Core\PieUIBridge.cpp" />
+    <ClCompile Include="src\Core\Presets.cpp" />
+    <ClCompile Include="src\UI\ShortcutSettings.cpp" />
+    <ClCompile Include="src\UI\PresetsWindow.cpp" />
     <ClCompile Include="src\Core\PathingState.cpp" />
     <ClCompile Include="src\Core\AttributeRuntime.cpp" />
     <ClCompile Include="src\Core\CheckpointRuntime.cpp" />
@@ -60,6 +63,9 @@
     <ClInclude Include="src\Core\VisualAttributes.h" /><ClInclude Include="src\UI\CategoryMenu.h" />
     <ClInclude Include="src\Core\MapTrailVisuals.h" />
     <ClInclude Include="src\Core\PieUIBridge.h" />
+    <ClInclude Include="src\Core\Presets.h" />
+    <ClInclude Include="src\UI\ShortcutSettings.h" />
+    <ClInclude Include="src\UI\PresetsWindow.h" />
     <ClInclude Include="src\Core\PathingState.h" />
     <ClInclude Include="src\TaquitoAPI.h" />
     <ClInclude Include="src\UI\QuickMenu.h" /><ClInclude Include="src\UI\OverlayRenderer.h" /><ClInclude Include="src\UI\SettingsWindow.h" /><ClInclude Include="src\UI\PackBrowserWindow.h" />

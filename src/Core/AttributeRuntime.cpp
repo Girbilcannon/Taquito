@@ -113,7 +113,7 @@ void AttributeRuntime::Initialize(const std::filesystem::path& directory) {
     for(const auto& [key,value]:data.get<jsonxx::Object>("timers").kv_map()) {
         if(timers.size()>=100000)break;
         if(key.size()<=512&&value->is<jsonxx::Number>()) {
-            double n=value->get<jsonxx::Number>();if(std::isfinite(n)&&n>=0)timers[key]=n;
+            double n=static_cast<double>(value->get<jsonxx::Number>());if(std::isfinite(n)&&n>=0)timers[key]=n;
         }
     }
 }
@@ -146,7 +146,7 @@ bool AttributeRuntime::HasLoadedResetTarget(const TacoPack::Marker&marker,const 
 }
 bool AttributeRuntime::Activate(const TacoPack::Marker& marker,const std::vector<TacoPack::Pack>& packs) {
     bool changed=false;
-    const auto target=[&](const std::string& text,int action) {
+    const auto applyCategory=[&](const std::string& text,int action) {
         const auto name=LowerTrim(text);if(name.empty())return;
         for(const auto& pack:packs) {
             auto it=pack.categories.find(name);if(it==pack.categories.end())continue;
@@ -154,7 +154,7 @@ bool AttributeRuntime::Activate(const TacoPack::Marker& marker,const std::vector
             if(next!=it->second->visible){it->second->visible=next;changed=true;}
         }
     };
-    target(marker.style.toggleCategory,-1);target(marker.style.showCategory,1);target(marker.style.hideCategory,0);
+    applyCategory(marker.style.toggleCategory,-1);applyCategory(marker.style.showCategory,1);applyCategory(marker.style.hideCategory,0);
     bool persistent=false;
     if(!marker.stateKey.empty()) switch(marker.style.behavior) {
         case 1:mapState.insert(marker.stateKey);break;

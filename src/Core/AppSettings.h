@@ -1,6 +1,7 @@
 #pragma once
 #include <filesystem>
 #include <vector>
+#include <array>
 #include "MarkerPack.h"
 
 namespace AppSettings {
@@ -8,7 +9,11 @@ namespace AppSettings {
     enum class ClipboardMode { Always = 0, Manual = 1, Never = 2 };
     enum class MapTrailStyle { Taco = 0, BlishHUD = 1 };
     struct HudPosition { bool saved=false;float x=0,y=0; };
+    struct Shortcut {int key=0;bool ctrl=false,alt=false,shift=false;};
     struct State {
+        bool renderingEnabled=true; // Session-only master switch, shared with map consumers.
+        bool presetsEnabled=false;
+        std::array<Shortcut,3> shortcuts{};
         HudPosition infoHud,copyHud;
         NestingStyle nestingStyle = NestingStyle::Taquito;
         MapTrailStyle mapTrailStyle = MapTrailStyle::Taco;

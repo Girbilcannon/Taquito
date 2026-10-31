@@ -1,5 +1,7 @@
 #include "SettingsWindow.h"
 #include "PackBrowserWindow.h"
+#include "ShortcutSettings.h"
+#include "../Core/Presets.h"
 #include "OverlayRenderer.h"
 #include "../Core/AppRuntime.h"
 #include "../Core/AppSettings.h"
@@ -21,21 +23,25 @@ bool shown=false;
 bool resetDiagnostics=true;
 }
 void SettingsWindow::Open() { shown=true; resetDiagnostics=true; }
-void SettingsWindow::Close() { shown=false; }
+void SettingsWindow::Close() { shown=false; ShortcutSettings::Reset(); }
 void SettingsWindow::Render(const std::vector<TacoPack::Pack>& packs, const Renderer& renderer,
                             bool loading, void (*reload)(), void (*save)()) {
     if(!shown) return;
     ImGui::SetNextWindowSize({620,440},ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSizeConstraints({520,320},{FLT_MAX,FLT_MAX});
     if(!ImGui::Begin("Taquito Settings##Taquito",&shown,ImGuiWindowFlags_NoSavedSettings)) {
-        ImGui::End(); return;
+        ImGui::End(); if(!shown)ShortcutSettings::Reset(); return;
     }
     const auto& folder=AppRuntime::GetPacksDirectory();
     auto& settings=AppSettings::Get();
     bool changed=false;
     ImGui::TextDisabled("Taquito " TAQUITO_VERSION);
     ImGui::Spacing();
+    if(!Presets::Status().empty())ImGui::TextWrapped("%s",Presets::Status().c_str());
+    if(ImGui::BeginTabBar("##SettingsTabs")) {
+    if(ImGui::BeginTabItem("General")) {
     if(ImGui::CollapsingHeader("Display",ImGuiTreeNodeFlags_DefaultOpen)) {
+        changed |= ImGui::Checkbox("Rendering enabled",&settings.renderingEnabled);
         changed |= ImGui::Checkbox("In-world markers and trails",&settings.world);
         changed |= ImGui::Checkbox("Minimap markers and trails",&settings.mini);
         changed |= ImGui::Checkbox("Full map markers and trails",&settings.big);
@@ -86,6 +92,10 @@ void SettingsWindow::Render(const std::vector<TacoPack::Pack>& packs, const Rend
         ImGui::Spacing();
     }
     if(ImGui::CollapsingHeader("Menu and Appearance")) {
+        bool usePresets=settings.presetsEnabled;
+        if(ImGui::Checkbox("Enable Presets",&usePresets)&&!loading){settings.presetsEnabled=usePresets;changed=true;}
+        if(ImGui::IsItemHovered())ImGui::SetTooltip("Off by default. Each preset remembers category checkboxes. Disabling presets restores the selections from before presets were enabled. Available after packs finish loading.");
+        if(!Presets::Status().empty())ImGui::TextWrapped("%s",Presets::Status().c_str());
         int nesting=static_cast<int>(settings.nestingStyle);
         if(ImGui::Combo("Nesting style",&nesting,"Taquito\0Taco\0\0")) {
             settings.nestingStyle=static_cast<AppSettings::NestingStyle>(nesting);changed=true;
@@ -110,7 +120,6 @@ void SettingsWindow::Render(const std::vector<TacoPack::Pack>& packs, const Rend
         if(loading) ImGui::TextDisabled("Reading packs...");
         ImGui::Spacing();
     }
-    if(changed) save();
     ImGui::Separator();
     if(resetDiagnostics) {
         ImGui::SetNextItemOpen(false,ImGuiCond_Always);
@@ -175,5 +184,15 @@ void SettingsWindow::Render(const std::vector<TacoPack::Pack>& packs, const Rend
             }
         }
     }
+    ImGui::EndTabItem();
+    }
+    if(ImGui::BeginTabItem("Keybinds")) {
+        ShortcutSettings::Draw();
+        ImGui::EndTabItem();
+    }
+    ImGui::EndTabBar();
+    }
+    if(changed) save();
     ImGui::End();
+    if(!shown)ShortcutSettings::Reset();
 }

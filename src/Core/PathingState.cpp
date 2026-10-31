@@ -54,6 +54,7 @@ void PathingState::Update(const std::vector<TacoPack::Pack>& packs,const AppSett
     root.import("version",jsonxx::Value(TAQUITO_VERSION));
     root.import("active",jsonxx::Value(true));
     root.import("ready",jsonxx::Value(ready));
+    root.import("renderingEnabled",jsonxx::Value(settings.renderingEnabled));
     root.import("packsDir",jsonxx::Value(Absolute(directory)));
     // Native rendering switches stay local; consumers control their own map widgets.
     // Optional schema-1 extension: dimensionless user multipliers, independent of visibility.

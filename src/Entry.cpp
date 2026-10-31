@@ -4,16 +4,20 @@
 #include "nexus/Nexus.h"
 #include "imgui/imgui.h"
 #include "Core/AppRuntime.h"
+#include "Core/AppSettings.h"
+#include "Core/Presets.h"
 #include "Core/PathingState.h"
 #include "Core/PieUIBridge.h"
 #include "TaquitoAPI.h"
 #include "UI/QuickMenu.h"
+#include "UI/PresetsWindow.h"
 #include "UI/MarkerInteractions.h"
 #include "resource.h"
 
 namespace {
 constexpr const char* Name = "Taquito";
 constexpr const char* QuickID = "TAQUITO_QUICKACCESS_78FD302C";
+constexpr const char* PresetsContextID = "TAQUITO_PRESETS_CONTEXT_78FD302C";
 constexpr const char* IconID = "TAQUITO_ICON_78FD302C_V2";
 constexpr const char* BindID = "KB_TAQUITO_MENU_78FD302C_V2";
 constexpr const char* InteractBindID = "KB_TAQUITO_MARKER_INTERACT_78FD302C";
@@ -27,6 +31,10 @@ void OnMarkerInteract(const char*, bool released) { if(!released) MarkerInteract
 void OnMumbleIdentityUpdated(void* value) { AppRuntime::SetMumbleIdentity(static_cast<Mumble::Identity*>(value)); }
 void OnPathingRequest(void*) { PathingState::Reply(); }
 void OnRender() { QuickMenu::Render(); }
+void OnQuickAccessMenu() {
+    if(AppSettings::Get().presetsEnabled&&Presets::Enabled())
+        if(ImGui::MenuItem("Open Presets"))PresetsWindow::Open();
+}
 // Keep registrations below paired with OnUnload before changing the addon lifecycle.
 void OnLoad(AddonAPI_t* value) {
     api = value;
@@ -45,11 +53,13 @@ void OnLoad(AddonAPI_t* value) {
     api->InputBinds_RegisterWithString(InteractBindID, OnMarkerInteract, "ALT+F");
     api->Events_Subscribe(EV_MUMBLE_IDENTITY_UPDATED, OnMumbleIdentityUpdated);
     api->QuickAccess_Add(QuickID, IconID, IconID, BindID, Name);
+    api->QuickAccess_AddContextMenu(PresetsContextID,QuickID,OnQuickAccessMenu);
     api->GUI_Register(RT_Render, OnRender);
     api->Log(LOGL_INFO, Name, "Taquito " TAQUITO_VERSION " loaded.");
 }
 void OnUnload() {
     if (!api) return;
+    api->QuickAccess_RemoveContextMenu(PresetsContextID);
     api->QuickAccess_Remove(QuickID);
     api->InputBinds_Deregister(BindID);
     api->InputBinds_Deregister(InteractBindID);
@@ -76,7 +86,7 @@ extern "C" __declspec(dllexport) AddonDefinition_t* GetAddonDef() {
     definition.Version.Major = 1;
     definition.Version.Minor = 0;
     definition.Version.Build = 1;
-    definition.Version.Revision = 8;
+    definition.Version.Revision = 11;
     definition.Author = "Girbilcannon.8259";
     definition.Description = "Lightweight TacO marker and trail pack viewer.";
     definition.Load = OnLoad;
