@@ -13,6 +13,7 @@
 #include <sstream>
 #include <vector>
 #include <limits>
+#include <mutex>
 
 // Snippet that creates an assertion function that works both in DEBUG & RELEASE mode.
 // JSONXX_ASSERT(...) macro will redirect to this. assert() macro is kept untouched.
@@ -525,8 +526,9 @@ typedef unsigned char byte;
 
 //template<bool quote>
 std::string escape_string( const std::string &input, const bool quote = false ) {
-    static std::string map[256], *once = 0;
-    if( !once ) {
+    static std::string map[256];
+    static std::once_flag once;
+    std::call_once(once, [] {
         // base
         for( int i = 0; i < 256; ++i ) {
             map[ i ] = std::string() + char(i);
@@ -547,8 +549,7 @@ std::string escape_string( const std::string &input, const bool quote = false ) 
         map[ byte('\r') ] = "\\r";
         map[ byte('\t') ] = "\\t";
 
-        once = map;
-    }
+    });
     std::string output;
     output.reserve( input.size() * 2 + 2 ); // worst scenario
     if( quote ) output += '"';

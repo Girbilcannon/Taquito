@@ -7,13 +7,59 @@
 #include <iomanip>
 #include <algorithm>
 #include <map>
+#include <thread>
+#include <mutex>
+#include <condition_variable>
+#include <set>
 
-namespace { AppSettings::State state; }
+namespace {
+AppSettings::State state;
+using Choices=std::map<std::string,std::map<std::string,bool>>;
+Choices cachedChoices;std::filesystem::path cachedDirectory;bool cacheReady=false,cacheWritable=true;
+// The worker serializes owned snapshots; it never reads live settings or pack pointers.
+class SettingsWriter {
+    std::mutex mutex;std::condition_variable cv;std::thread worker;
+    struct Job{std::function<std::string()> build;size_t maxBytes;};
+    std::map<std::filesystem::path,Job> pending;std::map<std::filesystem::path,std::string> written;bool busy=false,stop=false;
+    std::set<std::filesystem::path> failed;
+    void Run(){
+        std::unique_lock lock(mutex);
+        for(;;){cv.wait(lock,[&]{return stop||!pending.empty();});if(stop&&pending.empty())break;
+            auto job=pending.extract(pending.begin());busy=true;lock.unlock();
+            bool saved=false;
+            try{auto body=job.mapped().build();if(body.size()<=job.mapped().maxBytes){
+                const auto last=written.find(job.key());
+                saved=last!=written.end()&&last->second==body;
+                if(!saved)saved=AtomicFile::Write(job.key(),body);
+                if(saved)written[job.key()]=std::move(body);
+            }}catch(...){saved=false;}
+            lock.lock();if(saved)failed.erase(job.key());else failed.insert(job.key());busy=false;cv.notify_all();
+        }
+    }
+public:
+    ~SettingsWriter(){Flush();}
+    bool Failed(const std::filesystem::path&path){std::lock_guard lock(mutex);return failed.count(path)!=0;}
+    void Queue(const std::filesystem::path&path,std::function<std::string()> build,size_t maxBytes){
+        std::lock_guard lock(mutex);pending[path]={std::move(build),maxBytes};
+        if(!worker.joinable()){stop=false;worker=std::thread([this]{Run();});}cv.notify_all();
+    }
+    void Flush(){
+        std::unique_lock lock(mutex);if(!worker.joinable())return;
+        cv.wait(lock,[&]{return pending.empty()&&!busy;});stop=true;cv.notify_all();lock.unlock();worker.join();written.clear();
+    }
+};
+SettingsWriter writer;
+}
+void AppSettings::Flush(){writer.Flush();}
+void AppSettings::QueueFileSave(const std::filesystem::path&path,std::string body){QueueSerializedSave(path,[body=std::move(body)]{return body;});}
+void AppSettings::QueueSerializedSave(const std::filesystem::path&path,std::function<std::string()> build,size_t maxBytes){writer.Queue(path,std::move(build),maxBytes);}
+bool AppSettings::SaveFailed(const std::filesystem::path&path){return writer.Failed(path);}
 AppSettings::State& AppSettings::Get() { return state; }
 void AppSettings::Load(const std::filesystem::path& directory, std::vector<TacoPack::Pack>& packs) {
+    Flush();
     // Missing option in older settings is an explicit opt-out on upgrade/reload.
     state.autoTriggerPieUIMaps=false;
-    state.presetsEnabled=false;state.shortcuts={};
+    state.presetsEnabled=false;state.quickCloseMenu=false;state.shortcuts={};
     std::ifstream fileInput(directory / "settings.txt");
     // Filename aliases keep category toggles when a tracked pack changes its catalog filename.
     const auto installed=InstalledPacks::Load(directory / "installed-packs.json");
@@ -27,9 +73,9 @@ void AppSettings::Load(const std::filesystem::path& directory, std::vector<TacoP
     while (std::getline(fileInput,line)) {
         std::istringstream input(line);
         if(!(input>>kind))continue;
-        if(kind=="shortcutRender"||kind=="shortcutNext"||kind=="shortcutPrevious") {
+        if(kind=="shortcutRender"||kind=="shortcutNext"||kind=="shortcutPrevious"||kind=="shortcutMenu") {
             Shortcut key;if(!(input>>key.key>>key.ctrl>>key.alt>>key.shift))continue;
-            if(key.key>=0&&key.key<256)state.shortcuts[kind=="shortcutRender"?0:kind=="shortcutNext"?1:2]=key;
+            if(key.key>=0&&key.key<256)state.shortcuts[kind=="shortcutRender"?0:kind=="shortcutNext"?1:kind=="shortcutPrevious"?2:3]=key;
         } else if(kind=="infoHud" || kind=="copyHud") {
             bool saved=false;float x=0,y=0;if(!(input>>saved>>x>>y))continue;
             if(std::isfinite(x)&&std::isfinite(y)) {
@@ -75,10 +121,14 @@ void AppSettings::Load(const std::filesystem::path& directory, std::vector<TacoP
             else if (kind == "big") state.big = value;
             else if (kind == "playerBubble") state.playerBubble = value;
             else if (kind == "presetsEnabled") state.presetsEnabled=value;
+            else if (kind == "quickCloseMenu") state.quickCloseMenu=value;
             else if (kind == "showMarkerInfo") state.showMarkerInfo = value;
             else if (kind == "autoTriggerPieUIMaps") state.autoTriggerPieUIMaps = value;
         }
     }
+    std::error_code readError;
+    cacheWritable=!fileInput.bad()&&(fileInput.is_open()||!std::filesystem::exists(directory/"settings.txt",readError))&&!readError;
+    cachedChoices=choices;cachedDirectory=directory;cacheReady=true;
     // Current filenames take precedence over older aliases, regardless of file order.
     for(auto&pack:packs) {
         const auto current=pack.path.filename().string();
@@ -107,44 +157,33 @@ void AppSettings::Load(const std::filesystem::path& directory, std::vector<TacoP
     }
 }
 void AppSettings::Save(const std::filesystem::path& directory, const std::vector<TacoPack::Pack>& packs) {
-    std::error_code ec;
-    std::filesystem::create_directories(directory, ec);
-    // A save may run before packs load, or while an archive is temporarily absent.
-    // Merge into existing choices so neither case erases the user's selections.
-    std::map<std::string,std::map<std::string,bool>> choices;
-    std::ifstream previous(directory / "settings.txt");
-    if(!previous) {
-        const bool exists=std::filesystem::exists(directory / "settings.txt",ec);
-        if(exists||ec)return; // Do not overwrite a file whose choices could not be read.
-    }
-    std::string line;
-    while(std::getline(previous,line)) {
-        std::istringstream input(line);std::string kind,file,key;bool visible;
-        if(input>>kind&&kind=="category"&&input>>std::quoted(file)>>key>>visible)
-            choices[file][key]=visible;
-    }
-    if(previous.bad())return;
-    previous.close(); // Release the Windows file handle before atomic replacement.
-    for(const auto&pack:packs)for(const auto&[key,category]:pack.categories)
-        choices[pack.path.filename().string()][key]=category->visible;
+    // Load once, then merge in memory. An empty/partial pack list cannot erase saved choices.
+    if(!cacheReady||cachedDirectory!=directory){std::vector<TacoPack::Pack> none;auto current=state;Load(directory,none);state=current;}
+    if(!cacheWritable)return;
+    auto&choices=cachedChoices;
+    for(const auto&pack:packs){const auto file=pack.path.filename().string();for(const auto&[key,category]:pack.categories)
+        choices[file][key]=category->visible;}
+    QueueSerializedSave(directory/"settings.txt",[choices=cachedChoices,settings=state]{
     std::ostringstream output;
-    output << "presetsEnabled " << state.presetsEnabled << '\n';
-    const char* shortcutNames[]={"shortcutRender","shortcutNext","shortcutPrevious"};
-    for(size_t i=0;i<state.shortcuts.size();++i){const auto&k=state.shortcuts[i];output<<shortcutNames[i]<<' '<<k.key<<' '<<k.ctrl<<' '<<k.alt<<' '<<k.shift<<'\n';}
-    output << "infoHud " << state.infoHud.saved << ' ' << state.infoHud.x << ' ' << state.infoHud.y << '\n';
-    output << "copyHud " << state.copyHud.saved << ' ' << state.copyHud.x << ' ' << state.copyHud.y << '\n';
-    output << "nestingStyle " << static_cast<int>(state.nestingStyle) << '\n';
-    output << "mapTrailStyle " << static_cast<int>(state.mapTrailStyle) << '\n';
-    output << "clipboardMode " << static_cast<int>(state.clipboardMode) << "\nshowMarkerInfo " << state.showMarkerInfo << '\n';
-    output << "autoTriggerPieUIMaps " << state.autoTriggerPieUIMaps << '\n';
-    output << "world " << state.world << "\nmini " << state.mini << "\nbig " << state.big << '\n';
-    output << "miniIconSize " << state.miniIconSize << "\nminiTrailSize " << state.miniTrailSize << '\n';
-    output << "bigIconSize " << state.bigIconSize << "\nbigTrailSize " << state.bigTrailSize << '\n';
-    output << "worldIconSize " << state.worldIconSize << "\nworldTrailSize " << state.worldTrailSize << '\n';
-    output << "playerBubble " << state.playerBubble << "\nbubbleRadius " << state.bubbleRadius
-           << "\nbubbleFeather " << state.bubbleFeather << '\n';
+    output << "presetsEnabled " << settings.presetsEnabled << '\n';
+    output << "quickCloseMenu " << settings.quickCloseMenu << '\n';
+    const char* shortcutNames[]={"shortcutRender","shortcutNext","shortcutPrevious","shortcutMenu"};
+    for(size_t i=0;i<settings.shortcuts.size();++i){const auto&k=settings.shortcuts[i];output<<shortcutNames[i]<<' '<<k.key<<' '<<k.ctrl<<' '<<k.alt<<' '<<k.shift<<'\n';}
+    output << "infoHud " << settings.infoHud.saved << ' ' << settings.infoHud.x << ' ' << settings.infoHud.y << '\n';
+    output << "copyHud " << settings.copyHud.saved << ' ' << settings.copyHud.x << ' ' << settings.copyHud.y << '\n';
+    output << "nestingStyle " << static_cast<int>(settings.nestingStyle) << '\n';
+    output << "mapTrailStyle " << static_cast<int>(settings.mapTrailStyle) << '\n';
+    output << "clipboardMode " << static_cast<int>(settings.clipboardMode) << "\nshowMarkerInfo " << settings.showMarkerInfo << '\n';
+    output << "autoTriggerPieUIMaps " << settings.autoTriggerPieUIMaps << '\n';
+    output << "world " << settings.world << "\nmini " << settings.mini << "\nbig " << settings.big << '\n';
+    output << "miniIconSize " << settings.miniIconSize << "\nminiTrailSize " << settings.miniTrailSize << '\n';
+    output << "bigIconSize " << settings.bigIconSize << "\nbigTrailSize " << settings.bigTrailSize << '\n';
+    output << "worldIconSize " << settings.worldIconSize << "\nworldTrailSize " << settings.worldTrailSize << '\n';
+    output << "playerBubble " << settings.playerBubble << "\nbubbleRadius " << settings.bubbleRadius
+           << "\nbubbleFeather " << settings.bubbleFeather << '\n';
     output << "scaleBaselineV1 1\n";
     for(const auto&[file,categories]:choices)for(const auto&[key,visible]:categories)
         output << "category " << std::quoted(file) << ' ' << key << ' ' << visible << '\n';
-    AtomicFile::Write(directory / "settings.txt",output.str());
+    return output.str();
+    });
 }

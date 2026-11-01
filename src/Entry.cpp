@@ -20,6 +20,7 @@ constexpr const char* QuickID = "TAQUITO_QUICKACCESS_78FD302C";
 constexpr const char* PresetsContextID = "TAQUITO_PRESETS_CONTEXT_78FD302C";
 constexpr const char* IconID = "TAQUITO_ICON_78FD302C_V2";
 constexpr const char* BindID = "KB_TAQUITO_MENU_78FD302C_V2";
+constexpr const char* IconBindID = "KB_TAQUITO_ICON_ACTION_78FD302C";
 constexpr const char* InteractBindID = "KB_TAQUITO_MARKER_INTERACT_78FD302C";
 constexpr unsigned IconResource = IDR_TAQUITO_QUICKACCESS_ICON;
 AddonDefinition_t definition{};
@@ -27,6 +28,7 @@ AddonAPI_t* api = nullptr;
 HMODULE module = nullptr;
 
 void OnToggle(const char*, bool released) { if (!released) QuickMenu::RequestToggle(); }
+void OnIconToggle(const char*,bool released){if(!released)QuickMenu::RequestIconToggle();}
 void OnMarkerInteract(const char*, bool released) { if(!released) MarkerInteractions::RequestInteract(); }
 void OnMumbleIdentityUpdated(void* value) { AppRuntime::SetMumbleIdentity(static_cast<Mumble::Identity*>(value)); }
 void OnPathingRequest(void*) { PathingState::Reply(); }
@@ -50,9 +52,10 @@ void OnLoad(AddonAPI_t* value) {
     api->Events_Subscribe(EV_TAQUITO_PATHING_REQUEST,OnPathingRequest);
     api->Textures_GetOrCreateFromResource(IconID, IconResource, module);
     api->InputBinds_RegisterWithString(BindID, OnToggle, "ALT+SHIFT+T");
+    api->InputBinds_RegisterWithStruct(IconBindID,OnIconToggle,{});
     api->InputBinds_RegisterWithString(InteractBindID, OnMarkerInteract, "ALT+F");
     api->Events_Subscribe(EV_MUMBLE_IDENTITY_UPDATED, OnMumbleIdentityUpdated);
-    api->QuickAccess_Add(QuickID, IconID, IconID, BindID, Name);
+    api->QuickAccess_Add(QuickID, IconID, IconID, IconBindID, Name);
     api->QuickAccess_AddContextMenu(PresetsContextID,QuickID,OnQuickAccessMenu);
     api->GUI_Register(RT_Render, OnRender);
     api->Log(LOGL_INFO, Name, "Taquito " TAQUITO_VERSION " loaded.");
@@ -62,6 +65,7 @@ void OnUnload() {
     api->QuickAccess_RemoveContextMenu(PresetsContextID);
     api->QuickAccess_Remove(QuickID);
     api->InputBinds_Deregister(BindID);
+    api->InputBinds_Deregister(IconBindID);
     api->InputBinds_Deregister(InteractBindID);
     api->Events_Unsubscribe(EV_MUMBLE_IDENTITY_UPDATED, OnMumbleIdentityUpdated);
     api->GUI_Deregister(OnRender);
@@ -86,7 +90,7 @@ extern "C" __declspec(dllexport) AddonDefinition_t* GetAddonDef() {
     definition.Version.Major = 1;
     definition.Version.Minor = 0;
     definition.Version.Build = 1;
-    definition.Version.Revision = 12;
+    definition.Version.Revision = 15;
     definition.Author = "Girbilcannon.8259";
     definition.Description = "Lightweight TacO marker and trail pack viewer.";
     definition.Load = OnLoad;

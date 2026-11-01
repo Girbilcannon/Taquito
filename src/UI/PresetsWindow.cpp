@@ -8,7 +8,7 @@ void PresetsWindow::Close(){shown=false;renameId.clear();}
 void PresetsWindow::Render(std::vector<TacoPack::Pack>&packs,void(*changed)()){
     if(!shown||!Presets::Enabled())return;
     ImGui::SetNextWindowSize({330,260},ImGuiCond_FirstUseEver);
-    if(ImGui::Begin("Presets##Taquito",&shown,ImGuiWindowFlags_NoSavedSettings)){
+    if(ImGui::Begin("Presets##Taquito",&shown)){
         if(!AppSettings::Get().renderingEnabled)ImGui::TextColored({1,.25f,.25f,1},"Rendering Disabled");
         bool dirty=false;std::string choose,duplicate,remove,moveId,moveTarget;bool moveAfter=false;
         if(ImGui::BeginChild("##PresetList",{0,-ImGui::GetFrameHeightWithSpacing()*2},true)){

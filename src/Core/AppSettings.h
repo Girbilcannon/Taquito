@@ -2,6 +2,9 @@
 #include <filesystem>
 #include <vector>
 #include <array>
+#include <string>
+#include <functional>
+#include <limits>
 #include "MarkerPack.h"
 
 namespace AppSettings {
@@ -13,7 +16,8 @@ namespace AppSettings {
     struct State {
         bool renderingEnabled=true; // Session-only master switch, shared with map consumers.
         bool presetsEnabled=false;
-        std::array<Shortcut,3> shortcuts{};
+        bool quickCloseMenu=false;
+        std::array<Shortcut,4> shortcuts{};
         HudPosition infoHud,copyHud;
         NestingStyle nestingStyle = NestingStyle::Taquito;
         MapTrailStyle mapTrailStyle = MapTrailStyle::Taco;
@@ -28,6 +32,10 @@ namespace AppSettings {
         float bubbleRadius = 2.5f, bubbleFeather = 1.0f;
     };
     State& Get();
+    void Flush();
+    void QueueFileSave(const std::filesystem::path& path,std::string body);
+    void QueueSerializedSave(const std::filesystem::path& path,std::function<std::string()> build,size_t maxBytes=(std::numeric_limits<size_t>::max)());
+    bool SaveFailed(const std::filesystem::path& path);
     void Load(const std::filesystem::path& directory, std::vector<TacoPack::Pack>& packs);
     void Save(const std::filesystem::path& directory, const std::vector<TacoPack::Pack>& packs);
 }

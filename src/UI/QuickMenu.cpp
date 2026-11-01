@@ -27,7 +27,9 @@
 namespace {
 Renderer renderer;
 std::vector<TacoPack::Pack> packs;
-std::atomic_bool toggleRequested{false};
+std::atomic_bool toggleRequested{false},iconToggleRequested{false};
+bool leftCycleSeen=false,menuAtLeftPress=false;int lastLeftReleaseFrame=-100;
+AppSettings::State lastSharedSettings;
 bool showMenu = false;
 std::thread loader;
 std::mutex loadMutex;
@@ -38,20 +40,24 @@ std::vector<InstalledPacks::Record> packCatalog;
 
 void PublishPathingState() {
     PathingState::Update(packs,AppSettings::Get(),AppRuntime::GetPacksDirectory(),packCatalog,packsReady);
+    lastSharedSettings=AppSettings::Get();
 }
 void ResetSelectionContact() {
     MarkerInteractions::Reset();AttributeRuntime::ResetFocus();CheckpointRuntime::UpdateContact(0,{},false);
 }
+void CategoryChanged();
 void Save() {
-    if(packsReady){
-        const bool wasEnabled=Presets::Enabled();
+    // Local preferences do not capture presets, touch categories, or rebuild the bridge snapshot.
+    if(packsReady&&Presets::Enabled()!=AppSettings::Get().presetsEnabled){
         if(!Presets::SetEnabled(AppSettings::Get().presetsEnabled,packs))AppSettings::Get().presetsEnabled=false;
-        if(wasEnabled!=Presets::Enabled())ResetSelectionContact();
-        Presets::Capture(packs);Presets::Save();
+        ResetSelectionContact();Presets::Save();CategoryChanged();return;
     }
-    AppSettings::Save(AppRuntime::GetAddonDirectory(), packs);PublishPathingState();
+    AppSettings::Save(AppRuntime::GetAddonDirectory(),{});
+    const auto&s=AppSettings::Get();const auto&old=lastSharedSettings;
+    if(s.renderingEnabled!=old.renderingEnabled||s.miniIconSize!=old.miniIconSize||s.miniTrailSize!=old.miniTrailSize||
+       s.bigIconSize!=old.bigIconSize||s.bigTrailSize!=old.bigTrailSize)PublishPathingState();
 }
-void PresetChanged(){ResetSelectionContact();Save();}
+void PresetChanged(){ResetSelectionContact();CategoryChanged();}
 // Only the loader thread parses archives; ReceivePacks swaps them onto the render thread.
 void Refresh() {
     if (loader.joinable()) loader.join();
@@ -90,15 +96,26 @@ void ReceivePacks() {
     }
 }
 // Show XML categories directly; Save stores visibility for the next launch.
-void CategoryChanged() { Save(); renderer.RequestTextureClear(); }
+void CategoryChanged() {
+    if(packsReady&&Presets::Enabled()){Presets::Capture(packs);Presets::Save();}
+    AppSettings::Save(AppRuntime::GetAddonDirectory(),packs);PublishPathingState();
+}
 void DrawMenu() {
-    if (toggleRequested.exchange(false, std::memory_order_acq_rel)) {
-        showMenu = !showMenu;
-        if (showMenu) ImGui::SetNextWindowPos(ImGui::GetMousePos(), ImGuiCond_Always);
+    bool justOpened=false;
+    const bool normalToggle=toggleRequested.exchange(false,std::memory_order_acq_rel);
+    const bool iconToggle=iconToggleRequested.exchange(false,std::memory_order_acq_rel);
+    if (normalToggle||iconToggle) {
+        const bool sameMouseCycle=leftCycleSeen&&((ShortcutSettings::MousePressed()&1u)||ImGui::GetFrameCount()-lastLeftReleaseFrame<=2);
+        showMenu=iconToggle&&sameMouseCycle ? !menuAtLeftPress : !showMenu;
+        if(iconToggle)leftCycleSeen=false;
+        justOpened=showMenu;
     }
     if (!showMenu) return;
-    ImGui::SetNextWindowSizeConstraints({250, 50}, {480, ImGui::GetIO().DisplaySize.y * .8f});
-    if (ImGui::Begin("Taquito##menu", &showMenu, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings)) {
+    ImGui::SetNextWindowPos(ImGui::GetMousePos(), ImGuiCond_FirstUseEver);
+    const auto screen=ImGui::GetIO().DisplaySize;
+    const ImVec2 limit{std::max(1.0f,screen.x-16),std::max(1.0f,screen.y-16)};
+    ImGui::SetNextWindowSizeConstraints({std::min(250.0f,limit.x),0},limit);
+    if (ImGui::Begin("Taquito##menu", &showMenu,ImGuiWindowFlags_AlwaysAutoResize)) {
         if (loading.load()) ImGui::TextUnformatted("Reading TacoPacks...");
         else if (packs.empty()) ImGui::TextUnformatted("Place .taco or .zip files in TacoPacks beside the DLL.");
         if(!AppSettings::Get().renderingEnabled){
@@ -139,6 +156,11 @@ void DrawMenu() {
         }
         if(ImGui::MenuItem("Settings")) SettingsWindow::Open();
     }
+    if(AppSettings::Get().quickCloseMenu&&!justOpened&&
+       ShortcutSettings::MouseReleased()&&
+       !ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows|ImGuiHoveredFlags_AllowWhenBlockedByPopup|ImGuiHoveredFlags_AllowWhenBlockedByActiveItem))showMenu=false;
+    const auto size=ImGui::GetWindowSize(),pos=ImGui::GetWindowPos();
+    ImGui::SetWindowPos({std::clamp(pos.x,0.0f,std::max(0.0f,screen.x-size.x)),std::clamp(pos.y,0.0f,std::max(0.0f,screen.y-size.y))});
     ImGui::End();
 }
 }
@@ -154,8 +176,9 @@ void QuickMenu::Initialize() {
     CheckpointRuntime::Clear();
     renderer.Initialize(api); Refresh();
 }
-void QuickMenu::Shutdown() { CheckpointRuntime::Clear(); OnlinePacks::Stop(); if (loader.joinable()) loader.join(); Save(); MarkerInteractions::Reset(); renderer.Shutdown(); packs.clear(); showMenu = false; PackBrowserWindow::Close(); SettingsWindow::Close(); PresetsWindow::Close();Presets::Clear();ShortcutSettings::Reset(); { std::lock_guard lock(loadMutex); loadedPacks.reset(); } }
+void QuickMenu::Shutdown() { CheckpointRuntime::Clear(); OnlinePacks::Stop(); if (loader.joinable()) loader.join(); Save(); CategoryChanged(); AppSettings::Flush(); MarkerInteractions::Reset(); renderer.Shutdown(); packs.clear(); showMenu = false; PackBrowserWindow::Close(); SettingsWindow::Close(); PresetsWindow::Close();Presets::Clear();ShortcutSettings::Reset(); { std::lock_guard lock(loadMutex); loadedPacks.reset(); } }
 void QuickMenu::RequestToggle() { toggleRequested.store(true, std::memory_order_release); }
+void QuickMenu::RequestIconToggle(){iconToggleRequested.store(true,std::memory_order_release);}
 void QuickMenu::Render() {
     if(OnlinePacks::ConsumeReloadRequest()) Refresh();
     ReceivePacks();
@@ -163,9 +186,12 @@ void QuickMenu::Render() {
     auto* rawMumble=AppRuntime::GetMumble();
     const bool focused=rawMumble&&rawMumble->UITick&&rawMumble->Context.IsGameFocused;
     const auto shortcut=ShortcutSettings::Poll(focused,focused&&!rawMumble->Context.IsTextboxFocused);
+    if(ShortcutSettings::MousePressed()&1u){leftCycleSeen=true;menuAtLeftPress=showMenu;}
+    if(ShortcutSettings::MouseReleased()&1u)lastLeftReleaseFrame=ImGui::GetFrameCount();
     bool shortcutsChanged=shortcut.changed;
     if(shortcut.actions&1u){settings.renderingEnabled=!settings.renderingEnabled;shortcutsChanged=true;}
-    if(packsReady&&((shortcut.actions&2u&&Presets::Step(1,packs))||(shortcut.actions&4u&&Presets::Step(-1,packs)))){ResetSelectionContact();shortcutsChanged=true;}
+    if(shortcut.actions&8u)QuickMenu::RequestToggle();
+    if(packsReady&&((shortcut.actions&2u&&Presets::Step(1,packs))||(shortcut.actions&4u&&Presets::Step(-1,packs)))){PresetChanged();}
     if(shortcutsChanged)Save();
     auto* playableMumble=AppRuntime::GetPlayableMumble();
     static std::wstring lastIdentity;static std::string character;

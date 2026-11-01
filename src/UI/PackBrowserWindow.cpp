@@ -42,7 +42,7 @@ void PackBrowserWindow::Close() { shown=false; selected.clear(); }
 void PackBrowserWindow::Render() {
     if(!shown) return;
     ImGui::SetNextWindowSize({820,540},ImGuiCond_FirstUseEver);
-    if(ImGui::Begin("Download Marker Packs##Taquito",&shown,ImGuiWindowFlags_NoSavedSettings)) {
+    if(ImGui::Begin("Download Marker Packs##Taquito",&shown)) {
         const auto snapshot=OnlinePacks::GetSnapshot();
         Title("Marker packs");
         ImGui::SameLine();

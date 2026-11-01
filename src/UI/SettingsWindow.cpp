@@ -29,7 +29,7 @@ void SettingsWindow::Render(const std::vector<TacoPack::Pack>& packs, const Rend
     if(!shown) return;
     ImGui::SetNextWindowSize({620,440},ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSizeConstraints({520,320},{FLT_MAX,FLT_MAX});
-    if(!ImGui::Begin("Taquito Settings##Taquito",&shown,ImGuiWindowFlags_NoSavedSettings)) {
+    if(!ImGui::Begin("Taquito Settings##Taquito",&shown)) {
         ImGui::End(); if(!shown)ShortcutSettings::Reset(); return;
     }
     const auto& folder=AppRuntime::GetPacksDirectory();
@@ -92,6 +92,7 @@ void SettingsWindow::Render(const std::vector<TacoPack::Pack>& packs, const Rend
         ImGui::Spacing();
     }
     if(ImGui::CollapsingHeader("Menu and Appearance")) {
+        changed |= ImGui::Checkbox("Quick Close Menu",&settings.quickCloseMenu);
         bool usePresets=settings.presetsEnabled;
         if(ImGui::Checkbox("Enable Presets",&usePresets)&&!loading){settings.presetsEnabled=usePresets;changed=true;}
         if(ImGui::IsItemHovered())ImGui::SetTooltip("Off by default. Each preset remembers category checkboxes. Disabling presets restores the selections from before presets were enabled. Available after packs finish loading.");
